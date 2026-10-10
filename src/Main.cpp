@@ -151,13 +151,27 @@ void setup()
 
   if (config_data.ConfigVersion != SETTINGVERSION || config_data.BootFailed >= MAXBOOTFAILURE)
   {    
+    char savedSsid[33] = "";
+    char savedPass[65] = "";
+    bool canMigrateWifi = (config_data.BootFailed < MAXBOOTFAILURE &&
+                           (config_data.ConfigVersion == 2 || config_data.ConfigVersion == 3) &&
+                           config_data.ssid[0] != '\0' && (uint8_t)config_data.ssid[0] != 0xFF);
+
+    if (canMigrateWifi)
+    {
+      strncpy(savedSsid, config_data.ssid, sizeof(savedSsid) - 1);
+      strncpy(savedPass, config_data.password, sizeof(savedPass) - 1);
+      savedSsid[sizeof(savedSsid) - 1] = '\0';
+      savedPass[sizeof(savedPass) - 1] = '\0';
+    }
+
     if (config_data.ConfigVersion != SETTINGVERSION)
     {
-      MainSendDebugPrintf("[Core] Reset settings (wanted:%d actual:%d)", SETTINGVERSION, config_data.ConfigVersion);
+      MainSendDebugPrintf("[Core] Instellingen migreren/bijwerken (was:%d nieuw:%d)", config_data.ConfigVersion, SETTINGVERSION);
     }
     else
     {
-      MainSendDebugPrintf("[Core] Too many boot failures (%d), Reset config!", config_data.BootFailed);
+      MainSendDebugPrintf("[Core] Te veel boot failures (%d), reset!", config_data.BootFailed);
     }
 
     blink(20, 50UL);
@@ -165,7 +179,7 @@ void setup()
     config_data = (settings){
       SETTINGVERSION, // ConfigVersion
       0,              // BootFailed
-      true,           // NeedConfig
+      (savedSsid[0] == '\0'), // NeedConfig: false als we WiFi migreren, true bij schone reset
       "",             // ssid
       "",             // password
       10,             // interval
@@ -177,6 +191,13 @@ void setup()
       "",             // adminPassword
       "admin"         // adminUser
     };
+
+    if (canMigrateWifi)
+    {
+      strncpy(config_data.ssid, savedSsid, sizeof(config_data.ssid) - 1);
+      strncpy(config_data.password, savedPass, sizeof(config_data.password) - 1);
+      MainSendDebugPrintf("[Core] WiFi instellingen succesvol gemigreerd voor SSID '%s'", config_data.ssid);
+    }
   }
   else
   {
