@@ -32,6 +32,8 @@
 #define LANG_PSWDERROR "Les deux mot de passe ne sont pas identique."
 #define LANG_MENU "Menu"
 #define LANG_MENUP1 "Valeurs mesurées"
+#define LANG_MENUDEBUG "Système & Debug"
+#define LANG_DEBUGH1 "Statut Système & Debug"
 #define LANG_MENUGraph24 "Graphique sur 24h"
 #define LANG_MENUConf "Configuration"
 #define LANG_MENUOTA "Mettre à jour le micrologiciel"

@@ -44,8 +44,42 @@ HTTPMgr *HTTPClient = nullptr;
 
 ADC_MODE(ADC_VCC); // allows monitoring internal VCC level
 
+#define DEBUG_LOG_LINES 40
+#define DEBUG_LOG_LINE_LEN 120
+static char debugLogRing[DEBUG_LOG_LINES][DEBUG_LOG_LINE_LEN];
+static int debugLogHead = 0;
+static int debugLogCount = 0;
+
+static void AddDebugLog(const char *payload)
+{
+  if (!payload || payload[0] == '\0') return;
+  unsigned long s = millis() / 1000;
+  unsigned int h = s / 3600;
+  unsigned int m = (s % 3600) / 60;
+  unsigned int sec = s % 60;
+  snprintf(debugLogRing[debugLogHead], DEBUG_LOG_LINE_LEN, "[%02u:%02u:%02u] %s", h, m, sec, payload);
+  debugLogHead = (debugLogHead + 1) % DEBUG_LOG_LINES;
+  if (debugLogCount < DEBUG_LOG_LINES) debugLogCount++;
+}
+
+String GetDebugLogs()
+{
+  String out;
+  out.reserve(debugLogCount * 80);
+  int start = (debugLogCount < DEBUG_LOG_LINES) ? 0 : debugLogHead;
+  for (int i = 0; i < debugLogCount; i++)
+  {
+    int idx = (start + i) % DEBUG_LOG_LINES;
+    out += debugLogRing[idx];
+    out += "\n";
+  }
+  return out;
+}
+
 void MainSendDebug(const char *payload)
 {
+  AddDebugLog(payload);
+
   #ifdef DEBUG_SERIAL_P1
   Serial.println(payload);
   #endif

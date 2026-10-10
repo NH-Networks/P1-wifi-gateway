@@ -32,6 +32,8 @@
 #define LANG_PSWDERROR "De wachtwoorden komen niet overeen."
 #define LANG_MENU "Menu"
 #define LANG_MENUP1 "Gemeten waarden"
+#define LANG_MENUDEBUG "Systeem & Debug"
+#define LANG_DEBUGH1 "Systeem- & Meterstatus"
 #define LANG_MENUGraph24 "Grafiek over 24 uur"
 #define LANG_MENUConf "Configuratie"
 #define LANG_MENUOTA "Firmware bijwerken"

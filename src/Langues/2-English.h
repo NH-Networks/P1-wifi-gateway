@@ -32,6 +32,8 @@
 #define LANG_PSWDERROR "Passwords do not match."
 #define LANG_MENU "Menu"
 #define LANG_MENUP1 "Measured values"
+#define LANG_MENUDEBUG "System & Debug"
+#define LANG_DEBUGH1 "System & Meter Status"
 #define LANG_MENUGraph24 "24h Graph"
 #define LANG_MENUConf "Configuration"
 #define LANG_MENUOTA "Update firmware"

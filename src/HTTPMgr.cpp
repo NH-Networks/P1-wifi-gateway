@@ -49,6 +49,8 @@ void HTTPMgr::start_webservices()
   server.on("/raw", std::bind(&HTTPMgr::handleRAW, this));
   server.on("/Data", std::bind(&HTTPMgr::handleRAW, this));
   server.on("/data", std::bind(&HTTPMgr::handleRAW, this));
+  server.on("/debug", std::bind(&HTTPMgr::handleDebug, this));
+  server.on("/debug.log", std::bind(&HTTPMgr::handleDebugLog, this));
 
   // OTA firmware update
   server.on("/update", HTTP_GET, std::bind(&HTTPMgr::handleUploadForm, this));
@@ -117,6 +119,7 @@ void HTTPMgr::handleRoot()
     <a href="/P1" class="bt">)" LANG_MENUP1 R"(</a>
     <a href="/raw" class="bt">)" LANG_SHOWRAW R"(</a>
     <a href="/P1.json" class="bt">)" LANG_SHOWJSON R"(</a>
+    <a href="/debug" class="bt">)" LANG_MENUDEBUG R"(</a>
     </fieldset>
     <fieldset><legend>)" LANG_ConfH1 R"(</legend>
     <a href="/Setup" class="bt">)" LANG_MENUConf R"(</a>
@@ -258,29 +261,41 @@ void HTTPMgr::handleStyleCSS()
   if (ActifCache(true))
     return;
   static const char css[] PROGMEM = R"(
-body{font-family:Verdana,sans-serif;background:#f9f9f9;margin:0;padding:20px;text-align:center}
-.container{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.1);padding:20px 20px 0}
-h2{text-align:center;color:#000}
-fieldset{border:1px solid #ddd;border-radius:8px;padding:10px;margin-bottom:20px}
-fieldset input{width:30%;padding:5px;border:1px solid #ddd;border-radius:4px;font-size:1em;box-shadow:inset 0 1px 3px rgba(0,0,0,.1)}
-legend{font-weight:bold;padding:0 10px;font-size:1.2em}
-label{display:inline-block;width:60%;text-align:right;margin-right:10px;margin-bottom:12px}
-.help,.footer{text-align:right;font-size:11px;color:#aaa}
+:root{--bg:#0b0f19;--card:#151c2c;--border:#26324a;--text:#f1f5f9;--muted:#94a3b8;--cyan:#38bdf8;--green:#22c55e;--red:#ef4444}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;text-align:center}
+.container{max-width:620px;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 25px -5px rgba(0,0,0,.6);padding:22px 20px 10px}
+h2{text-align:center;color:var(--cyan);margin:0 0 16px;font-weight:600;letter-spacing:-.5px}
+fieldset{border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:18px;background:rgba(11,15,25,.5);text-align:left}
+legend{font-weight:600;padding:0 8px;font-size:1.1em;color:var(--cyan)}
+fieldset input[type=text],fieldset input[type=password],fieldset input[type=number],fieldset select{width:40%;padding:7px 10px;background:#080c14;color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:1em;box-sizing:border-box;outline:none}
+fieldset input:focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(56,189,248,.25)}
+label{display:inline-block;width:55%;text-align:right;margin-right:12px;margin-bottom:12px;color:var(--muted);font-size:.95em}
+.help,.footer{text-align:right;font-size:12px;color:var(--muted);margin-top:2px}
 p{margin:.5em 0}
-button,.bt{display:inline-block;text-align:center;text-decoration:none;border:0;border-radius:.3rem;background:#97C1A9;color:#fff;line-height:2.4rem;font-size:1.2rem;width:100%;transition-duration:.4s;cursor:pointer;margin-top:5px}
-button:hover,.bt:hover{background:#0e70a4}
-.bt[href="/"],.bt[href="/P1"]{background:#55CBCD}
-.bt[href="/"]:hover,.bt[href="/P1"]:hover{background:#A2E1DB}
-.bwarning{background:#E74C3C}
-.bwarning:hover{background:#C0392B}
-a{color:#1fa3ec;text-decoration:none}
-.row:after{content:"";display:table;clear:both}
+button,.bt{display:inline-block;box-sizing:border-box;text-align:center;text-decoration:none;border:0;border-radius:8px;background:#0284c7;color:#fff;line-height:2.5rem;font-size:1.05rem;font-weight:500;width:100%;transition:all .2s ease;cursor:pointer;margin-top:7px}
+button:hover,.bt:hover{background:#0369a1;transform:translateY(-1px)}
+.bt[href="/"]{background:#334155}
+.bt[href="/"]:hover{background:#475569}
+.bt[href="/P1"]{background:#0284c7}
+.bt[href="/P1"]:hover{background:#0369a1}
+.bwarning{background:#dc2626!important}
+.bwarning:hover{background:#b91c1c!important}
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+.row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.row label{text-align:left;width:60%;margin-bottom:0}
+.row input{width:38%!important;text-align:right}
 svg{display:block;margin:auto}
-.status-bar{display:flex;justify-content:flex-end;margin-top:10px;padding:10px;border-top:1px solid #ddd}
-.status-bar .indicator{width:10px;height:10px;border-radius:50%;background:green;margin-right:5px;display:inline-block}
-.error{background:red!important}
-.status-bar .text{margin-left:5px}
-.status-bar .item{display:flex;align-items:center;margin-bottom:5px;padding-left:10px}
+.status-bar{display:flex;justify-content:flex-end;margin-top:14px;padding:12px 4px 4px;border-top:1px solid var(--border)}
+.status-bar .indicator{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);margin-right:6px;display:inline-block}
+.error{background:var(--red)!important;box-shadow:0 0 8px var(--red)!important}
+.status-bar .text{margin-left:2px;color:var(--muted);font-size:.9em}
+.status-bar .item{display:flex;align-items:center;margin-left:14px}
+.terminal{background:#06080e;border:1px solid var(--border);border-radius:8px;color:#4ade80;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.85em;padding:12px;text-align:left;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;line-height:1.45}
+.info-table{width:100%;border-collapse:collapse;font-size:.95em;margin-bottom:6px}
+.info-table td{padding:5px 4px}
+.info-table td:first-child{color:var(--muted);width:50%}
+.info-table td:last-child{text-align:right;font-weight:500;color:var(--text)}
 )";
   server.send(200, "text/css", css);
 }
@@ -648,4 +663,83 @@ void HTTPMgr::SendWithHeaderFooter(const char *content_type, const char *content
 
   server.sendContent(buffer);
   server.sendContent("");
+}
+
+void HTTPMgr::handleDebugLog()
+{
+  extern String GetDebugLogs();
+  server.send(200, "text/plain", GetDebugLogs());
+}
+
+void HTTPMgr::handleDebug()
+{
+  static const char template_html[] PROGMEM = R"raw(
+<fieldset><legend>%s</legend>
+<table class="info-table">
+<tr><td>Meter Identificatie</td><td>%s</td></tr>
+<tr><td>Laatste P1 Uitlezing</td><td>%s</td></tr>
+<tr><td>Datagram Lengte</td><td>%u bytes</td></tr>
+<tr><td>WiFi Signaal (RSSI)</td><td>%d dBm</td></tr>
+<tr><td>WiFi IP-adres</td><td>%s</td></tr>
+<tr><td>Uptime</td><td>%s</td></tr>
+<tr><td>Vrij Geheugen (Heap)</td><td>%u bytes</td></tr>
+<tr><td>Poort 23 Status</td><td>%s (%u clients)</td></tr>
+</table>
+</fieldset>
+<fieldset><legend>Live P1 &amp; Systeem Debug Log</legend>
+<div class="terminal" id="termLogs">Logs laden...</div>
+<button type="button" class="bt" id="btnRefreshLog" onclick="fetchLogs()" style="margin-top:8px">Log Verversen</button>
+</fieldset>
+<a href="/raw" class="bt">%s</a>
+<a href="/P1.json" class="bt">%s</a>
+<a href="/" class="bt">%s</a>
+<script>
+async function fetchLogs(){
+  try{
+    let r = await fetch("/debug.log");
+    if(r.ok){
+      let t = await r.text();
+      let el = document.getElementById("termLogs");
+      el.innerText = t;
+      el.scrollTop = el.scrollHeight;
+    }
+  }catch(e){}
+}
+fetchLogs();
+setInterval(fetchLogs, 4000);
+</script>
+)raw";
+
+  char uptimeStr[40];
+  unsigned long s = millis() / 1000;
+  unsigned int d = s / 86400;
+  unsigned int h = (s % 86400) / 3600;
+  unsigned int m = (s % 3600) / 60;
+  unsigned int sec = s % 60;
+  snprintf(uptimeStr, sizeof(uptimeStr), "%ud %uh %um %us", d, h, m, sec);
+
+  const char *mName = P1Captor.meterName.length() > 0 ? P1Captor.meterName.c_str() : "Sagemcom / DSMR 5.0";
+  const char *lastTs = P1Captor.DataReaded.P1timestamp[0] != '\0' ? P1Captor.DataReaded.P1timestamp : "Wachten op data...";
+  size_t dLen = P1Captor.datagram.length();
+  int rssi = WiFi.RSSI();
+  uint32_t freeHeap = ESP.getFreeHeap();
+  uint8_t clients = (TelnetSrv != nullptr) ? TelnetSrv->GetConnectedClientCount() : 0;
+  const char *telnetState = (TelnetSrv != nullptr) ? "Actief" : "Uitgeschakeld";
+
+  snprintf_P(HTMLBufferContent, sizeof(HTMLBufferContent), template_html,
+             LANG_DEBUGH1,
+             mName,
+             lastTs,
+             (unsigned int)dLen,
+             rssi,
+             WiFi.localIP().toString().c_str(),
+             uptimeStr,
+             freeHeap,
+             telnetState,
+             clients,
+             LANG_SHOWRAW,
+             LANG_SHOWJSON,
+             LANG_MENU);
+
+  SendWithHeaderFooter("text/html", HTMLBufferContent, "", false);
 }

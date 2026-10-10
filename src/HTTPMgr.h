@@ -58,6 +58,8 @@ private:
   void handleStyleCSS();
   void handleJSON();
   void handleJSONStatus();
+  void handleDebug();
+  void handleDebugLog();
   void handleP1Js();
   void handleMainJS();
   void handleReboot();
