@@ -153,16 +153,34 @@ void setup()
   {    
     char savedSsid[33] = "";
     char savedPass[65] = "";
-    bool canMigrateWifi = (config_data.BootFailed < MAXBOOTFAILURE &&
-                           (config_data.ConfigVersion == 2 || config_data.ConfigVersion == 3) &&
-                           config_data.ssid[0] != '\0' && (uint8_t)config_data.ssid[0] != 0xFF);
+    bool canMigrateWifi = false;
 
-    if (canMigrateWifi)
+    if (config_data.BootFailed < MAXBOOTFAILURE &&
+        (config_data.ConfigVersion == 2 || config_data.ConfigVersion == 3) &&
+        config_data.ssid[0] != '\0' && (uint8_t)config_data.ssid[0] != 0xFF)
     {
       strncpy(savedSsid, config_data.ssid, sizeof(savedSsid) - 1);
       strncpy(savedPass, config_data.password, sizeof(savedPass) - 1);
-      savedSsid[sizeof(savedSsid) - 1] = '\0';
-      savedPass[sizeof(savedPass) - 1] = '\0';
+      canMigrateWifi = true;
+    }
+    else if (config_data.BootFailed < MAXBOOTFAILURE &&
+             config_data.ConfigVersion == 'j') // Romix 1.1bcd (dataSet[0] == 'j')
+    {
+      // Romix 1.1 layout: dataSet[4], ssid[32] at offset 4, password[64] at offset 36
+      for (int i = 0; i < 32; i++) { savedSsid[i] = (char)EEPROM.read(4 + i); }
+      savedSsid[32] = '\0';
+      for (int i = 0; i < 64; i++) { savedPass[i] = (char)EEPROM.read(36 + i); }
+      savedPass[64] = '\0';
+
+      if (savedSsid[0] != '\0' && (uint8_t)savedSsid[0] != 0xFF)
+      {
+        canMigrateWifi = true;
+      }
+      else
+      {
+        savedSsid[0] = '\0';
+        savedPass[0] = '\0';
+      }
     }
 
     if (config_data.ConfigVersion != SETTINGVERSION)
