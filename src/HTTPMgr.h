@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Jean-Pierre Sneyers
+ * Copyright (c) 2025 Jean-Pierre Sneyers, Ronald Leenes, & Contributors
  * Source : https://github.com/narfight/P1-wifi-gateway
  *
  * This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- * Additionally, please note that the original source code of this file
- * may contain portions of code derived from (or inspired by)
- * previous works by:
- *
- * Ronald Leenes (https://github.com/romix123/P1-wifi-gateway and http://esp8266thingies.nl)
  */
 
 #ifndef WEBSERVERMGR_H
 #define WEBSERVERMGR_H
+
 #define WWW_PORT_HTTP 80
 #include <Arduino.h>
 #include <ESP8266WebServer.h>
@@ -32,27 +27,23 @@
 #include <ArduinoJson.h>
 #include "GlobalVar.h"
 #include "TelnetMgr.h"
-#include "MQTT.h"
 #include "P1Reader.h"
-#include "LogP1Mgr.h"
 
 class HTTPMgr
 {
 public:
-  explicit HTTPMgr(settings &currentConf, TelnetMgr &currentTelnet, MQTTMgr &currentMQTT, P1Reader &currentP1, LogP1Mgr &currentLogP1);
+  explicit HTTPMgr(settings &currentConf, TelnetMgr *currentTelnet, P1Reader &currentP1);
   void DoMe();
   void start_webservices();
 
 private:
   settings &conf;
-  TelnetMgr &TelnetSrv;
-  MQTTMgr &MQTT;
+  TelnetMgr *TelnetSrv;
   P1Reader &P1Captor;
-  LogP1Mgr &LogP1;
   ESP8266WebServer server;
-  char HTMLBufferContent[4000];
+  char HTMLBufferContent[3000];
   bool ChekifAsAdmin();
-  void SendWithHeaderFooter(const char *content_type, char *content, const char *header, bool refresh);
+  void SendWithHeaderFooter(const char *content_type, const char *content, const char *header, bool refresh);
   char* nettoyerInputText(const char* inputText, size_t maxLen);
   const char* GetAnimWait();
   void handleRoot();
@@ -70,21 +61,16 @@ private:
   void handleP1Js();
   void handleMainJS();
   void handleReboot();
-  void handleFile();
-
-  void handleGraph24();
-  void handleGraph24JS();
 
   void RebootPage(const char *Message);
-
   bool ActifCache(bool);
-  
   void ReplyOTA(bool success, const char* error, u_int ref);
 
-  bool UpdateResultFailed = false; // true = erreur d'update
-  String UpdateMsg; // Message d'erreur de la mise à jour
-  uint UpdateErrorCode = 0; //code d'erreur
+  bool UpdateResultFailed = false;
+  String UpdateMsg;
+  uint UpdateErrorCode = 0;
 
   void handleP1();
 };
+
 #endif

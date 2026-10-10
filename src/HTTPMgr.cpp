@@ -1,6 +1,5 @@
 /*
-
- * Copyright (c) 2025 Jean-Pierre Sneyers
+ * Copyright (c) 2025 Jean-Pierre Sneyers, Ronald Leenes, & Contributors
  * Source : https://github.com/narfight/P1-wifi-gateway
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,40 +14,31 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- * Additionally, please note that the original source code of this file
- * may contain portions of code derived from (or inspired by)
- * previous works by:
- *
- * Ronald Leenes (https://github.com/romix123/P1-wifi-gateway and http://esp8266thingies.nl)
  */
 
 #include "HTTPMgr.h"
 
-HTTPMgr::HTTPMgr(settings &currentConf, TelnetMgr &currentTelnet, MQTTMgr &currentMQTT, P1Reader &currentP1, LogP1Mgr &currentLogP1) : conf(currentConf), TelnetSrv(currentTelnet), MQTT(currentMQTT), P1Captor(currentP1), LogP1(currentLogP1), server(80)
+extern char* GetClientName();
+extern void RequestRestart(unsigned long delay);
+
+HTTPMgr::HTTPMgr(settings &currentConf, TelnetMgr *currentTelnet, P1Reader &currentP1)
+    : conf(currentConf), TelnetSrv(currentTelnet), P1Captor(currentP1), server(80)
 {
 }
 
 void HTTPMgr::start_webservices()
 {
-  // header files
+  // Header and asset files
   server.on("/style.css", std::bind(&HTTPMgr::handleStyleCSS, this));
   server.on("/favicon.svg", std::bind(&HTTPMgr::handleFavicon, this));
   server.on("/main.js", std::bind(&HTTPMgr::handleMainJS, this));
 
-  // extra for /P1 page for refresh
+  // Data endpoints
   server.on("/P1.json", std::bind(&HTTPMgr::handleJSON, this));
   server.on("/P1.js", std::bind(&HTTPMgr::handleP1Js, this));
-
-  server.on("/Log24H.js", std::bind(&HTTPMgr::handleGraph24JS, this));
-  server.on("/Log24H", std::bind(&HTTPMgr::handleGraph24, this));
-
-  // for the footer
   server.on("/status.json", std::bind(&HTTPMgr::handleJSONStatus, this));
 
-  server.on("/file", std::bind(&HTTPMgr::handleFile, this));
-
-  // pages
+  // Pages
   server.on("/", std::bind(&HTTPMgr::handleRoot, this));
   server.on("/setPassword", std::bind(&HTTPMgr::handlePassword, this));
   server.on("/Setup", std::bind(&HTTPMgr::handleSetup, this));
@@ -57,9 +47,11 @@ void HTTPMgr::start_webservices()
   server.on("/reboot", std::bind(&HTTPMgr::handleReboot, this));
   server.on("/P1", std::bind(&HTTPMgr::handleP1, this));
   server.on("/raw", std::bind(&HTTPMgr::handleRAW, this));
+
+  // OTA firmware update
   server.on("/update", HTTP_GET, std::bind(&HTTPMgr::handleUploadForm, this));
   server.on("/update", HTTP_POST, [this]()
-            {
+  {
     if (!ChekifAsAdmin())
     {
       return;
@@ -74,7 +66,8 @@ void HTTPMgr::start_webservices()
     else
     {
       ReplyOTA(true, LANG_OTASTATUSOK, 0);
-    } }, std::bind(&HTTPMgr::handleUploadFlash, this));
+    }
+  }, std::bind(&HTTPMgr::handleUploadFlash, this));
 
   server.begin();
 }
@@ -83,7 +76,6 @@ bool HTTPMgr::ActifCache(bool enabled)
 {
   if (enabled)
   {
-    // Gestion du cache sur base de la version du firmware
     char etag[15];
     snprintf(etag, sizeof(etag), "W/\"%d\"", BUILD_DATE);
     if (server.header("If-None-Match") == etag)
@@ -91,19 +83,15 @@ bool HTTPMgr::ActifCache(bool enabled)
       server.send(304);
       return true;
     }
-    // Cache
     server.sendHeader("ETag", etag);
     server.sendHeader("Cache-Control", "max-age=86400");
-
     return false;
   }
   else
   {
-    // Définir les en-têtes HTTP pour désactiver le cache
     server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     server.sendHeader("Pragma", "no-cache");
     server.sendHeader("Expires", "-1");
-
     return false;
   }
 }
@@ -115,7 +103,6 @@ void HTTPMgr::DoMe()
 
 void HTTPMgr::handleRoot()
 {
-  // You cannot use this page if is not your first boot
   if (conf.NeedConfig)
   {
     server.sendHeader("Location", "/setPassword");
@@ -123,10 +110,11 @@ void HTTPMgr::handleRoot()
     return;
   }
 
-  static char template_html[] PROGMEM = R"(
+  static const char template_html[] PROGMEM = R"(
     <fieldset><legend>)" LANG_H1DATA R"(</legend>
     <a href="/P1" class="bt">)" LANG_MENUP1 R"(</a>
-    <a href="/Log24H" class="bt">)" LANG_MENUGraph24 R"(</a>
+    <a href="/raw" class="bt">)" LANG_SHOWRAW R"(</a>
+    <a href="/P1.json" class="bt">)" LANG_SHOWJSON R"(</a>
     </fieldset>
     <fieldset><legend>)" LANG_ConfH1 R"(</legend>
     <a href="/Setup" class="bt">)" LANG_MENUConf R"(</a>
@@ -139,52 +127,88 @@ void HTTPMgr::handleRoot()
   SendWithHeaderFooter("text/html", template_html, "", false);
 }
 
-void HTTPMgr::handleFile()
+void HTTPMgr::handleUploadForm()
 {
-  if (!server.hasArg("name"))
+  if (!ChekifAsAdmin())
   {
-    server.send(400, "text/plain", "Missing name parameter");
     return;
   }
 
-  if (!LittleFS.begin())
-  {
-    server.send(500, "text/plain");
-    return;
-  }
+  static const char html[] PROGMEM = R"(
+<form method='post' action='' enctype='multipart/form-data'>
+  <fieldset><legend>)" LANG_OTAH1 R"(</legend>
+  <p><label for="firmware">)" LANG_OTAFIRMWARE R"( :</label><input type='file' accept='.bin,.bin.gz' id='firmware' name='firmware' required></p>
+  </fieldset><button class="bt bwarning" type='submit'>)" LANG_OTABTUPDATE R"(</button></form>
+  <a href="/" class="bt">)" LANG_MENU R"(</a>)";
 
-  if (LittleFS.exists(server.arg("name")))
+  SendWithHeaderFooter("text/html", html, "", false);
+}
+
+void HTTPMgr::handleUploadFlash()
+{
+  if (ChekifAsAdmin())
   {
-    File file = LittleFS.open(server.arg("name"), "r");
-    if (!file)
+    HTTPUpload &upload = server.upload();
+
+    if (UpdateResultFailed)
     {
-      server.send(404, "text/plain", "File not found");
       return;
     }
 
-    const size_t BUFFER_SIZE = 512; // Ajustez selon votre mémoire disponible
-    char buffer[BUFFER_SIZE];
-    size_t totalSize = file.size();
-
-    // Configurer l'en-tête pour le streaming
-    server.setContentLength(totalSize);
-    server.send(200, "application/json", "");
-
-    // Envoyer le fichier par morceaux
-    while (file.available())
+    if (upload.status == UPLOAD_FILE_START)
     {
-      size_t bytesRead = file.readBytes(buffer, BUFFER_SIZE);
-      if (bytesRead > 0)
+      Update.clearError();
+      uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+      MainSendDebugPrintf("[FLASH] Upload of '%s' (%lu bytes - free %lu)", upload.filename.c_str(), upload.contentLength, maxSketchSpace);
+
+      if (upload.contentLength > maxSketchSpace)
       {
-        server.client().write(buffer, bytesRead);
+        UpdateResultFailed = true;
+        UpdateMsg = "Not enough space for update";
+        UpdateErrorCode = 4;
+        return;
+      }
+
+      if (!Update.begin(maxSketchSpace, U_FLASH))
+      {
+        UpdateResultFailed = true;
+        UpdateMsg = Update.getErrorString();
+        UpdateErrorCode = 0;
+        return;
       }
     }
-
-    file.close();
-  }
-  else
-  {
-    server.send(404, "text/plain");
+    else if (upload.status == UPLOAD_FILE_WRITE)
+    {
+      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
+      {
+        UpdateResultFailed = true;
+        UpdateMsg = Update.getErrorString();
+        UpdateErrorCode = 1;
+        return;
+      }
+    }
+    else if (upload.status == UPLOAD_FILE_END)
+    {
+      if (Update.end(true))
+      {
+        return;
+      }
+      else
+      {
+        UpdateResultFailed = true;
+        UpdateMsg = Update.getErrorString();
+        UpdateErrorCode = 1;
+        return;
+      }
+    }
+    else if (upload.status == UPLOAD_FILE_ABORTED)
+    {
+      UpdateResultFailed = true;
+      UpdateMsg = "Update was aborted";
+      UpdateErrorCode = 3;
+      return;
+    }
+    yield();
   }
 }
 
@@ -192,7 +216,7 @@ void HTTPMgr::ReplyOTA(bool success, const char *error, u_int ref)
 {
   if (success)
   {
-    MainSendDebug("[FLASH] Ok, reboot now");
+    MainSendDebug("[FLASH] Update successful, rebooting");
   }
   else
   {
@@ -207,7 +231,7 @@ void HTTPMgr::ReplyOTA(bool success, const char *error, u_int ref)
 <p>)" LANG_OTASUCCESS4 R"(</p>
 %s</fieldset>)";
 
-  const char *animation = GetAnimWait(); // Supposons que GetAnimWait retourne un char*
+  const char *animation = GetAnimWait();
   snprintf_P(HTMLBufferContent, sizeof(HTMLBufferContent), template_html, (success) ? LANG_OTANSUCCESSOK : LANG_OTANSUCCESSNOK, error, ref, GetClientName(), animation);
 
   SendWithHeaderFooter("text/html", HTMLBufferContent, "", true);
@@ -216,7 +240,7 @@ void HTTPMgr::ReplyOTA(bool success, const char *error, u_int ref)
 
 void HTTPMgr::handleRAW()
 {
-  server.send(200, "Text/plain", P1Captor.datagram);
+  server.send(200, "text/plain", P1Captor.datagram);
 }
 
 void HTTPMgr::handleP1Js()
@@ -264,32 +288,9 @@ void HTTPMgr::handleMainJS()
   if (ActifCache(true))
     return;
 
-  static char js[] PROGMEM = R"(function parseDateTime(t){return new Date("20"+t.substring(0,2),t.substring(2,4)-1,t.substring(4,6),t.substring(6,8),t.substring(8,10),t.substring(10,12))}async function updateStatus(){try{let e=await fetch("status.json"),s=await e.json();const r=document.getElementById("MQTT-indicator");null!=r&&(1==s.MQTT?r.classList.remove("error"):r.classList.add("error"));const n=document.getElementById("P1-indicator");if(""!=s.P1.LastSample){var t=parseDateTime(s.P1.LastSample);Date.now().set;t.setSeconds(t.getSeconds()+3*s.P1.Interval),t<Date.now()?n.classList.add("error"):n.classList.remove("error")}else n.classList.add("error")}catch(t){console.error("Error on update status:",t)}}window.onload=function(){updateStatus();document.querySelectorAll(".bwarning").forEach((t=>{t.addEventListener("click",(function(t){confirm(")" LANG_ASKCONFIRM R"(")||t.preventDefault()}))})),setInterval(updateStatus,1e4)};)";
+  static const char js[] PROGMEM = R"(function parseDateTime(t){return new Date("20"+t.substring(0,2),t.substring(2,4)-1,t.substring(4,6),t.substring(6,8),t.substring(8,10),t.substring(10,12))}async function updateStatus(){try{let e=await fetch("status.json"),s=await e.json();const p=document.getElementById("Port23-indicator");if(null!=p){(s.Port23&&s.Port23.Active)?p.classList.remove("error"):p.classList.add("error")}const n=document.getElementById("P1-indicator");if(""!=s.P1.LastSample){var t=parseDateTime(s.P1.LastSample);t.setSeconds(t.getSeconds()+3*s.P1.Interval);t<Date.now()?n.classList.add("error"):n.classList.remove("error")}else{n.classList.add("error")}}catch(t){console.error("Error on update status:",t)}}window.onload=function(){updateStatus();document.querySelectorAll(".bwarning").forEach((t=>{t.addEventListener("click",(function(t){confirm(")" LANG_ASKCONFIRM R"(")||t.preventDefault()}))})),setInterval(updateStatus,1e4)};)";
 
   server.send(200, "application/javascript", js);
-}
-
-void HTTPMgr::handleGraph24JS()
-{
-  if (ActifCache(true))
-    return;
-
-  static char js[] PROGMEM = R"(google.charts.load("current",{packages:["corechart","bar"]}),google.charts.setOnLoadCallback(()=>{fetch("/file?name=/Last24H.json").then(l=>l.json()).then(l=>{var e=new google.visualization.DataTable;e.addColumn("datetime","DateTime"),e.addColumn("number","T1"),e.addColumn("number","T2"),e.addColumn("number","R1"),e.addColumn("number","R2");let a={T1:null,T2:null,R1:null,R2:null};l.forEach(l=>{let n={T1:null,T2:null,R1:null,R2:null};null!==a.T1&&(n.T1=l.T1-a.T1,n.T2=l.T2-a.T2,n.R1=l.R1-a.R1,n.R2=l.R2-a.R2),a={T1:l.T1,T2:l.T2,R1:l.R1,R2:l.R2},e.addRow([parseDateTime(l.DateTime),n.T1,n.T2,n.R1,n.R2])}),new google.visualization.LineChart(document.getElementById("chart_div")).draw(e,{hAxis:{title:"Date/Heure"},vAxis:{title:"kWh",format:"# kWh"},legend:"bottom", chartArea: {width:'90%'}})})});)";
-
-  server.send(200, "application/javascript", js);
-}
-
-void HTTPMgr::handleGraph24()
-{
-  if (!ChekifAsAdmin())
-  {
-    return;
-  }
-
-  static char html[] PROGMEM = R"(<fieldset><legend>)" LANG_MENUGraph24 R"(</legend></h1>
-    <div id="chart_div" style="width: 100%"></div></fieldset><a href="/" class="bt">)" LANG_MENU R"(</a>)";
-
-  SendWithHeaderFooter("text/html", html, "<script type=\"text/javascript\" src=\"https://www.gstatic.com/charts/loader.js\"></script><script type=\"text/javascript\" src=\"Log24H.js\"></script>", false);
 }
 
 void HTTPMgr::handleFavicon()
@@ -308,98 +309,8 @@ void HTTPMgr::handleReboot()
   {
     return;
   }
-
   RebootPage(LANG_TXTREBOOTPAGE);
   RequestRestart(1000);
-}
-
-void HTTPMgr::handleUploadForm()
-{
-  if (!ChekifAsAdmin())
-  {
-    return;
-  }
-
-  static char html[] PROGMEM = R"(
-<form method='post' action='' enctype='multipart/form-data'>
-  <fieldset><legend>)" LANG_OTAH1 R"(</legend>
-  <p><label for="firmware">)" LANG_OTAFIRMWARE R"( :</label><input type='file' accept='.bin,.bin.gz' id='firmware' name='firmware' required></p>
-  </fieldset><button class="bt bwarning" type='submit'>)" LANG_OTABTUPDATE R"(</button></form>
-  <a href="/" class="bt">)" LANG_MENU R"(</a>)";
-
-  SendWithHeaderFooter("text/html", html, "", false);
-}
-
-void HTTPMgr::handleUploadFlash()
-{
-  if (ChekifAsAdmin())
-  {
-    HTTPUpload &upload = server.upload();
-
-    if (UpdateResultFailed)
-    {
-      // on a un souci avec cette mise à jour, on ignore l'upload
-      return;
-    }
-
-    if (upload.status == UPLOAD_FILE_START)
-    {
-      Update.clearError();
-
-      // check size en space
-      uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-      MainSendDebugPrintf("[FLASH] Upload of '%s' (%lu octet - free %lu)", upload.filename.c_str(), upload.contentLength, maxSketchSpace);
-
-      if (upload.contentLength > maxSketchSpace)
-      {
-        UpdateResultFailed = true;                 // true = erreur d'update
-        UpdateMsg = "Not enough space for update"; // Message d'erreur de la mise à jour
-        UpdateErrorCode = 4;
-        return;
-      }
-
-      if (!Update.begin(maxSketchSpace, U_FLASH))
-      {
-        UpdateResultFailed = true;           // true = erreur d'update
-        UpdateMsg = Update.getErrorString(); // Message d'erreur de la mise à jour
-        UpdateErrorCode = 0;
-        return;
-      }
-    }
-    else if (upload.status == UPLOAD_FILE_WRITE)
-    {
-      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
-      {
-        UpdateResultFailed = true;           // true = erreur d'update
-        UpdateMsg = Update.getErrorString(); // Message d'erreur de la mise à jour
-        UpdateErrorCode = 1;
-        return;
-      }
-    }
-    else if (upload.status == UPLOAD_FILE_END)
-    {
-      if (Update.end(true)) // true to set the size to the current progress
-      {
-        // fin du flash, tout est bon :-)
-        return;
-      }
-      else
-      {
-        UpdateResultFailed = true;           // true = erreur d'update
-        UpdateMsg = Update.getErrorString(); // Message d'erreur de la mise à jour
-        UpdateErrorCode = 1;
-        return;
-      }
-    }
-    else if (upload.status == UPLOAD_FILE_ABORTED)
-    {
-      UpdateResultFailed = true;        // true = erreur d'update
-      UpdateMsg = "Update was aborted"; // Message d'erreur de la mise à jour
-      UpdateErrorCode = 3;
-      return;
-    }
-    yield();
-  }
 }
 
 void HTTPMgr::handleFactoryReset()
@@ -410,8 +321,6 @@ void HTTPMgr::handleFactoryReset()
   }
 
   RebootPage(LANG_RF_RESTTXT);
-
-  LogP1.format();
 
   conf.ConfigVersion = SETTINGVERSIONNULL;
 
@@ -424,7 +333,7 @@ void HTTPMgr::handleFactoryReset()
 
 void HTTPMgr::handlePassword()
 {
-  if (!conf.NeedConfig) // if need config, don't ask password
+  if (!conf.NeedConfig)
   {
     if (!ChekifAsAdmin())
     {
@@ -432,7 +341,6 @@ void HTTPMgr::handlePassword()
     }
   }
 
-  // Is the new password ?
   if (server.method() == HTTP_POST && server.hasArg("psd1") && server.hasArg("psd2"))
   {
     if (server.arg("psd1") == server.arg("psd2"))
@@ -442,12 +350,11 @@ void HTTPMgr::handlePassword()
       server.arg("adminUser").toCharArray(conf.adminUser, sizeof(conf.adminUser));
 
       conf.BootFailed = 0;
-      MainSendDebug("[HTTP] New password");
+      MainSendDebug("[HTTP] New password saved");
       EEPROM.begin(sizeof(struct settings));
       EEPROM.put(0, conf);
       EEPROM.commit();
 
-      // Move to full setup !
       server.sendHeader("Location", "/");
       server.send(302, "text/plain", "Redirecting");
       return;
@@ -465,9 +372,10 @@ void HTTPMgr::handlePassword()
 <a href="/" class="bt">)" LANG_MENU R"(</a>
 )";
 
-  snprintf_P(HTMLBufferContent, sizeof(HTMLBufferContent), template_html,
-             nettoyerInputText(conf.adminUser, 33));
-  //
+  char *cleanUser = nettoyerInputText(conf.adminUser, 33);
+  snprintf_P(HTMLBufferContent, sizeof(HTMLBufferContent), template_html, (cleanUser != NULL) ? cleanUser : "");
+  if (cleanUser != NULL) free(cleanUser);
+
   SendWithHeaderFooter("text/html", HTMLBufferContent, "", false);
 }
 
@@ -481,33 +389,16 @@ void HTTPMgr::handleSetup()
   static const char template_html[] PROGMEM = R"(
 <form action="/SetupSave" method="post">
 <fieldset><legend>)" LANG_ConfP1H2 R"(</legend>
-<label for="interval">)" LANG_ConfReadP1Intr R"( :</label><input type="number" min="10" id="interval" name="interval" value="%u"><br />
+<label for="interval">)" LANG_ConfReadP1Intr R"( :</label><input type="number" min="1" id="interval" name="interval" value="%u"><br />
 <label for="InvTarif">)" LANG_ConfPERMUTTARIF R"( :</label><input type="checkbox" name="InvTarif" id="InvTarif" %s><br />
 </fieldset>
 <fieldset><legend>)" LANG_ConfWIFIH2 R"(</legend>
 <label for="ssid">)" LANG_ConfSSID R"( :</label><input type="text" name="ssid" id="ssid" maxlength="32" value="%s"><br />
 <label for="password">)" LANG_ConfWIFIPWD R"( :</label><input type="password" maxlength="64" name="password" id="password" value="%s"><br />
 </fieldset>
-<fieldset><legend>)" LANG_ConfDMTZH2 R"(</legend>
-<label for="domo">)" LANG_ConfDMTZBool R"( :</label><input type="checkbox" name="domo" id="domo" %s><br />
-<label for="domoticzIP">)" LANG_ConfDMTZIP R"( :</label><input type="text" name="domoticzIP" id="domoticzIP" maxlength="29" value="%s"><br />
-<label for="domoticzPort">)" LANG_ConfDMTZPORT R"( :</label><input type="number" min="1" max="65535" id="domoticzPort" name="domoticzPort" value="%u"><br />
-<label for="domoticzGasIdx">)" LANG_ConfDMTZGIdx R"( :</label><input type="number" min="0" id="domoticzGasIdx" name="domoticzGasIdx" value="%u"><br />
-<label for="domoticzEnergyIdx">)" LANG_ConfDMTZEIdx R"( :</label><input type="number" min="0" id="domoticzEnergyIdx" name="domoticzEnergyIdx" value="%u">
-<label for="domoticzDebugIdx">)" LANG_ConfDMTZDIdx R"( :</label><input type="number" min="0" id="domoticzDebugIdx" name="domoticzDebugIdx" value="%u">
-<label for="debugToDomo">)" LANG_ConfDOMODBG R"( :</label><input type="checkbox" name="debugToDomo" id="debugToDomo" %s><br />
-</fieldset>
-<fieldset><legend>)" LANG_ConfMQTTH2 R"(</legend>
-<label for="mqtt">)" LANG_ConfMQTTBool R"( :</label><input type="checkbox" name="mqtt" id="mqtt" %s><br />
-<label for="mqttIP">)" LANG_ConfMQTTIP R"( :</label><input type="text" id="mqttIP" name="mqttIP" maxlength="29" value="%s"><br />
-<label for="mqttPort">)" LANG_ConfMQTTPORT R"( :</label><input type="number" min="1" max="65535" id="mqttPort" name="mqttPort" value="%u"><br />
-<label for="mqttUser">)" LANG_ConfMQTTUsr R"( :</label><input type="text" id="mqttUser" name="mqttUser" maxlength="31" value="%s"><br />
-<label for="mqttPass">)" LANG_ConfMQTTPSW R"( :</label><input type="password" id="mqttPass" name="mqttPass" maxlength="31" value="%s"><br />
-<label for="mqttTopic">)" LANG_ConfMQTTRoot R"( :</label><input type="text" id="mqttTopic" name="mqttTopic" maxlength="49" value="%s"><br />
-<label for="debugToMqtt">)" LANG_ConfMQTTDBG R"( :</label><input type="checkbox" name="debugToMqtt" id="debugToMqtt" %s><br />
-</fieldset>
 <fieldset><legend>)" LANG_ConfTLNETH2 R"(</legend>
 <label for="telnet">)" LANG_ConfTLNETBool R"( :</label><input type="checkbox" name="telnet" id="telnet" %s><br />
+<label for="telnetPort">)" LANG_ConfTLNETPort R"( :</label><input type="number" min="1" max="65535" id="telnetPort" name="telnetPort" value="%u"><br />
 <label for="reportToTelnet">)" LANG_ConfTLNETREPPORT R"( :</label><input type="checkbox" name="reportToTelnet" id="reportToTelnet" %s><br />
 <label for="debugToTelnet">)" LANG_ConfTLNETDBG R"( :</label><input type="checkbox" name="debugToTelnet" id="debugToTelnet" %s><br />
 </fieldset>
@@ -516,28 +407,21 @@ void HTTPMgr::handleSetup()
 <a href="/" class="bt">)" LANG_MENU R"(</a>
 )";
 
+  char *cleanSsid = nettoyerInputText(conf.ssid, 33);
+  char *cleanPass = nettoyerInputText(conf.password, 65);
+
   snprintf_P(HTMLBufferContent, sizeof(HTMLBufferContent), template_html,
              conf.interval,
              (conf.InverseHigh_1_2_Tarif) ? "checked" : "",
-             nettoyerInputText(conf.ssid, 33),
-             nettoyerInputText(conf.password, 65),
-             (conf.domo) ? "checked" : "",
-             nettoyerInputText(conf.domoticzIP, 30),
-             conf.domoticzPort,
-             conf.domoticzGasIdx,
-             conf.domoticzEnergyIdx,
-             conf.domoticzDebugIdx,
-             (conf.debugToDomo) ? "checked" : "",
-             (conf.mqtt) ? "checked" : "",
-             nettoyerInputText(conf.mqttIP, 30),
-             conf.mqttPort,
-             nettoyerInputText(conf.mqttUser, 32),
-             nettoyerInputText(conf.mqttPass, 32),
-             nettoyerInputText(conf.mqttTopic, 50),
-             (conf.debugToMqtt) ? "checked" : "",
+             (cleanSsid != NULL) ? cleanSsid : "",
+             (cleanPass != NULL) ? cleanPass : "",
              (conf.telnet) ? "checked" : "",
-             (conf.Repport2Telnet) ? "checked" : "",
+             conf.telnetPort ? conf.telnetPort : 23,
+             (conf.reportToTelnet) ? "checked" : "",
              (conf.debugToTelnet) ? "checked" : "");
+
+  if (cleanSsid != NULL) free(cleanSsid);
+  if (cleanPass != NULL) free(cleanPass);
 
   SendWithHeaderFooter("text/html", HTMLBufferContent, "", false);
 }
@@ -559,27 +443,15 @@ void HTTPMgr::handleSetupSave()
     server.arg("ssid").toCharArray(NewConf.ssid, sizeof(NewConf.ssid));
     server.arg("password").toCharArray(NewConf.password, sizeof(NewConf.password));
 
-    NewConf.domo = (server.arg("domo") == "on");
-    server.arg("domoticzIP").toCharArray(NewConf.domoticzIP, sizeof(NewConf.domoticzIP));
-    NewConf.domoticzPort = server.arg("domoticzPort").toInt();
-    NewConf.domoticzEnergyIdx = server.arg("domoticzEnergyIdx").toInt();
-    NewConf.domoticzGasIdx = server.arg("domoticzGasIdx").toInt();
-    NewConf.domoticzDebugIdx = server.arg("domoticzDebugIdx").toInt();
-    NewConf.debugToDomo = (server.arg("debugToDomo") == "on");
-
-    NewConf.mqtt = (server.arg("mqtt") == "on");
-    server.arg("mqttIP").toCharArray(NewConf.mqttIP, sizeof(NewConf.mqttIP));
-    NewConf.mqttPort = server.arg("mqttPort").toInt();
-    server.arg("mqttUser").toCharArray(NewConf.mqttUser, sizeof(NewConf.mqttUser));
-    server.arg("mqttPass").toCharArray(NewConf.mqttPass, sizeof(NewConf.mqttPass));
-    server.arg("mqttTopic").toCharArray(NewConf.mqttTopic, sizeof(NewConf.mqttTopic));
-    NewConf.debugToMqtt = (server.arg("debugToMqtt") == "on");
-
     NewConf.interval = server.arg("interval").toInt();
+    if (NewConf.interval < 1) NewConf.interval = 10;
     NewConf.InverseHigh_1_2_Tarif = (server.arg("InvTarif") == "on");
+
     NewConf.telnet = (server.arg("telnet") == "on");
+    NewConf.telnetPort = server.arg("telnetPort").toInt();
+    if (NewConf.telnetPort == 0) NewConf.telnetPort = 23;
+    NewConf.reportToTelnet = (server.arg("reportToTelnet") == "on");
     NewConf.debugToTelnet = (server.arg("debugToTelnet") == "on");
-    NewConf.Repport2Telnet = (server.arg("reportToTelnet") == "on");
 
     NewConf.ConfigVersion = SETTINGVERSION;
 
@@ -612,7 +484,7 @@ void HTTPMgr::RebootPage(const char *Message)
 
 void HTTPMgr::handleP1()
 {
-  static char template_html[] PROGMEM = R"(
+  static const char template_html[] PROGMEM = R"(
 <fieldset><legend>)" LANG_DATAH1 R"(</legend>
 <div class="row"><label for="LastSample">)" LANG_DATALastGet R"(</label><input type="text" class="c6" id="LastSample"/></div>
 <div class="row"><label for="T1">)" LANG_DATAFullL R"(</label><input type="text" class="c6" id="T1"/></div>
@@ -638,16 +510,15 @@ void HTTPMgr::handleP1()
 
 void HTTPMgr::handleJSONStatus()
 {
-  char out[90];
+  char out[150];
   JsonDocument doc;
 
   doc["P1"]["LastSample"] = P1Captor.DataReaded.P1timestamp;
   doc["P1"]["Interval"] = conf.interval;
   doc["P1"]["NextUpdateIn"] = P1Captor.GetnextUpdateTime() - millis();
-  if (conf.mqtt)
-  {
-    doc["MQTT"] = MQTT.IsConnected();
-  }
+  doc["Port23"]["Active"] = (TelnetSrv != nullptr);
+  doc["Port23"]["Clients"] = (TelnetSrv != nullptr) ? TelnetSrv->GetConnectedClientCount() : 0;
+  doc["Port23"]["Port"] = conf.telnetPort ? conf.telnetPort : 23;
 
   serializeJson(doc, out);
 
@@ -681,8 +552,6 @@ void HTTPMgr::handleJSON()
   server.send(200, "application/json", str);
 }
 
-/// @brief Check and ask login to login
-/// @return true if logged
 bool HTTPMgr::ChekifAsAdmin()
 {
   if (strlen(conf.adminPassword) != 0)
@@ -698,23 +567,21 @@ bool HTTPMgr::ChekifAsAdmin()
 
 char *HTTPMgr::nettoyerInputText(const char *inputText, size_t maxLen)
 {
-  char *result = (char *)malloc(maxLen + 1); // +1 pour le caractère de fin de chaîne
+  char *result = (char *)malloc(maxLen + 1);
   if (result == NULL)
   {
-    // Gestion d'erreur : allocation mémoire échouée
     return NULL;
   }
 
-  strcpy(result, inputText);
+  strncpy(result, inputText, maxLen);
+  result[maxLen] = '\0';
 
   char *found = result;
   while ((found = strchr(found, '\'')) != NULL)
   {
-    // Décalage de tous les caractères après l'apostrophe
-    memmove(found + 5, found + 1, strlen(found + 1) + 1); // +1 pour le caractère de fin de chaîne
-    // Copie de "&apos;"
+    memmove(found + 5, found + 1, strlen(found + 1) + 1);
     strcpy(found, "&apos;");
-    found += 5; // Passer à la prochaine position
+    found += 5;
   }
 
   return result;
@@ -734,11 +601,12 @@ const char *HTTPMgr::GetAnimWait()
   return anim_wait;
 }
 
-void HTTPMgr::SendWithHeaderFooter(const char *content_type, char *content, const char *header, bool refresh)
+void HTTPMgr::SendWithHeaderFooter(const char *content_type, const char *content, const char *header, bool refresh)
 {
-  char buffer[1500]; // Buffer pour header et footer
+  char buffer[1500];
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/html", "");
+
   static const char template_html_header[] PROGMEM = R"(
 <!DOCTYPE html>
 <html lang=")" LANG_HEADERLG R"(">
@@ -753,22 +621,22 @@ void HTTPMgr::SendWithHeaderFooter(const char *content_type, char *content, cons
 %s
 </head>
 <body><div class="container"><h2>P1 wifi-gateway</h2>
-<p class="help"><a href="https://github.com/narfight/P1-wifi-gateway/wiki" target="_blank">)" LANG_HLPH1 R"(</a></p>)";
+<p class="help"><a href="https://github.com/romix123/P1-wifi-gateway" target="_blank">)" LANG_HLPH1 R"(</a></p>)";
 
   static const char template_html_footer[] PROGMEM = R"(
 <div class="status-bar">
-<div class="item"><span class="indicator" id="MQTT-indicator"></span><span class="text">MQTT</span></div>
+<div class="item"><span class="indicator" id="Port23-indicator"></span><span class="text">Poort 23</span></div>
 <div class="item"><span class="indicator" id="P1-indicator"></span><span class="text">P1</span></div>
 </div></div>
-)" LANG_OTAFIRMWARE R"( : v%s.%d  | <a href="https://github.com/narfight/P1-wifi-gateway" target="_blank">Github</a></body></html>
+)" LANG_OTAFIRMWARE R"( : v%s.%d  | <a href="https://github.com/romix123/P1-wifi-gateway" target="_blank">Github</a></body></html>
 )";
+
   snprintf_P(buffer, sizeof(buffer), template_html_header,
              GetClientName(),
              header,
              (refresh) ? "<script>function chk() {fetch('http://' + window.location.hostname).then(response => {if (response.ok) {setTimeout(function () {window.location.href = '/';}, 1000);}}).catch(ex =>{});};setTimeout(setInterval(chk, 1000), 3000);</script>" : "");
   server.sendContent(buffer);
 
-  // content
   server.sendContent(content);
 
   snprintf_P(buffer, sizeof(buffer), template_html_footer,

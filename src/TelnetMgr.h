@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Jean-Pierre Sneyers
+ * Copyright (c) 2025 Jean-Pierre Sneyers, Ronald Leenes, & Contributors
  * Source : https://github.com/narfight/P1-wifi-gateway
  *
  * This program is free software: you can redistribute it and/or modify
@@ -14,51 +14,45 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- * Additionally, please note that the original source code of this file
- * may contain portions of code derived from (or inspired by)
- * previous works by:
- *
- * Ronald Leenes (https://github.com/romix123/P1-wifi-gateway and http://esp8266thingies.nl)
  */
 
-#ifndef TelnetMgr_H
-#define TelnetMgr_H
+#ifndef TELNETMGR_H
+#define TELNETMGR_H
 
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <map>
 #include "Debug.h"
 #include "GlobalVar.h"
 #include "P1Reader.h"
 
 #define MAX_SRV_CLIENTS 5
-#define TELNETPORT 23
-#define INACTIVITY_TIMEOUT 300000 // 5 minutes
+#define DEFAULT_TELNETPORT 23
 
 class TelnetMgr
 {
-  private:
-  settings& conf;
+private:
+  settings &conf;
   P1Reader &P1Captor;
-  std::map<int, bool> authenticatedClients;
-  std::map<int, unsigned long> lastActivityTime;
-  void handleNewConnections();
-  int findFreeClientSlot();
-  void checkInactiveClients();
-  bool authenticateClient(WiFiClient &client, int clientId);
-  bool readWithTimeout(WiFiClient &client, const char* prompt, unsigned long timeout);
   WiFiServer telnet;
   WiFiClient telnetClients[MAX_SRV_CLIENTS];
+  unsigned long lastActivityTime[MAX_SRV_CLIENTS];
+
+  void handleNewConnections();
+  int findFreeClientSlot();
   void handleClientActivity();
   void processCommand(int clientId, const String &command);
   void commandeHelp(int clientId);
   void closeConnection(int clientId);
-  public:
-  explicit TelnetMgr(settings& currentConf, P1Reader &currentP1);
+
+public:
+  explicit TelnetMgr(settings &currentConf, P1Reader &currentP1);
+  ~TelnetMgr();
   void DoMe();
   void stop();
   void SendDataGram();
-  void SendDebug(String payload);
+  void SendDebug(const char *payload);
+  uint8_t GetConnectedClientCount();
+  bool IsRunning();
 };
+
 #endif

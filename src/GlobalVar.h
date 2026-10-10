@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Jean-Pierre Sneyers
+ * Copyright (c) 2025 Jean-Pierre Sneyers, Ronald Leenes, & Contributors
  * Source : https://github.com/narfight/P1-wifi-gateway
  *
  * This program is free software: you can redistribute it and/or modify
@@ -14,12 +14,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- * Additionally, please note that the original source code of this file
- * may contain portions of code derived from (or inspired by)
- * previous works by:
- *
- * Ronald Leenes (https://github.com/romix123/P1-wifi-gateway and http://esp8266thingies.nl)
  */
 
 #ifndef VARMGR_H
@@ -27,7 +21,7 @@
 
 #include <Arduino.h>
 
-#define VERSION "1.03"
+#define VERSION "1.04"
 #define HOSTNAME "P1meter"
 
 #define CLIENTNAMESIZE 32
@@ -39,7 +33,7 @@
 #define LED_OFF 0x1
 
 #define SETTINGVERSIONNULL 0 //= no config
-#define SETTINGVERSION 3
+#define SETTINGVERSION 4
 
 struct settings
 {
@@ -48,31 +42,18 @@ struct settings
   bool NeedConfig = true;
   char ssid[33];
   char password[65];
-  char domoticzIP[30];
-  unsigned int domoticzPort;
-  unsigned int domoticzEnergyIdx;
-  unsigned int domoticzGasIdx;
-  char mqttTopic[50];
-  char mqttIP[30];
-  unsigned int mqttPort;
-  char mqttUser[32];
-  char mqttPass[32];
-  unsigned int interval;
-  bool domo = true;
-  bool mqtt = false;
+  unsigned int interval = 10;
   bool InverseHigh_1_2_Tarif = false;
-  bool telnet = false;
-  bool debugToMqtt = false;
+  bool telnet = true;
+  bool reportToTelnet = true;
   bool debugToTelnet = false;
+  unsigned int telnetPort = 23;
   char adminPassword[33];
   char adminUser[33];
-  bool Repport2Telnet;
-  bool debugToDomo = true;
-  unsigned int domoticzDebugIdx;
 };
 
 #ifndef LANGUAGE
-  #error "LANGUAGE n'est pas défini. Veuillez définir LANGUAGE dans GlobalVar.h"
+  #error "LANGUAGE is niet gedefinieerd. Definieer LANGUAGE in platformio.ini"
 #endif
 
 #include "Langues/1-French.h"
@@ -80,6 +61,6 @@ struct settings
 #include "Langues/3-Dutch.h"
 
 #ifndef LANG_LOADED
-  #error "LANGUAGE n'a pas une valeur valide"
+  #error "LANGUAGE heeft geen geldige waarde"
 #endif
 #endif
