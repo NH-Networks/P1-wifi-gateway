@@ -750,29 +750,29 @@ setInterval(fetchLogs, 4000);
 
 void HTTPMgr::handleHelp()
 {
-  static const char template_html[] PROGMEM = R"(
-<fieldset><legend>)" LANG_HELP_PORT23_TITLE R"(</legend>
-<p style="line-height:1.5;margin:2px 0 6px">)" LANG_HELP_PORT23_DESC R"(</p>
+  static const char template_html[] PROGMEM = R"raw(
+<fieldset><legend>)raw" LANG_HELP_PORT23_TITLE R"raw(</legend>
+<p style="line-height:1.5;margin:2px 0 6px">)raw" LANG_HELP_PORT23_DESC R"raw(</p>
 </fieldset>
-<fieldset><legend>)" LANG_HELP_BUTTONS_TITLE R"(</legend>
+<fieldset><legend>)raw" LANG_HELP_BUTTONS_TITLE R"raw(</legend>
 <div class="help-list">
-<div class="help-item">)" LANG_HELP_BTN_P1 R"(</div>
-<div class="help-item">)" LANG_HELP_BTN_RAW R"(</div>
-<div class="help-item">)" LANG_HELP_BTN_JSON R"(</div>
-<div class="help-item">)" LANG_HELP_BTN_DEBUG R"(</div>
+<div class="help-item">)raw" LANG_HELP_BTN_P1 R"raw(</div>
+<div class="help-item">)raw" LANG_HELP_BTN_RAW R"raw(</div>
+<div class="help-item">)raw" LANG_HELP_BTN_JSON R"raw(</div>
+<div class="help-item">)raw" LANG_HELP_BTN_DEBUG R"raw(</div>
 </div>
 </fieldset>
-<fieldset><legend>)" LANG_HELP_CONFIG_TITLE R"(</legend>
+<fieldset><legend>)raw" LANG_HELP_CONFIG_TITLE R"raw(</legend>
 <div class="help-list">
-<div class="help-item">)" LANG_HELP_BTN_SETUP R"(</div>
-<div class="help-item">)" LANG_HELP_BTN_PWD R"(</div>
-<div class="help-item">)" LANG_HELP_BTN_OTA R"(</div>
-<div class="help-item">)" LANG_HELP_BTN_REBOOT R"(</div>
+<div class="help-item">)raw" LANG_HELP_BTN_SETUP R"raw(</div>
+<div class="help-item">)raw" LANG_HELP_BTN_PWD R"raw(</div>
+<div class="help-item">)raw" LANG_HELP_BTN_OTA R"raw(</div>
+<div class="help-item">)raw" LANG_HELP_BTN_REBOOT R"raw(</div>
 </div>
 </fieldset>
 <a href="https://github.com/NH-Networks/P1-wifi-gateway" target="_blank" class="bt" style="background:#1e293b;border:1px solid var(--border)">GitHub Repository</a>
-<a href="/" class="bt">)" LANG_MENU R"(</a>
-)";
+<a href="/" class="bt">)raw" LANG_MENU R"raw(</a>
+)raw";
 
   SendWithHeaderFooter("text/html", template_html, "", false);
 }
