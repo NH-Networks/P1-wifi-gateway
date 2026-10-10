@@ -64,7 +64,7 @@ public:
   struct FixedValue
   {
     FixedValue() = default;
-    explicit FixedValue(String value) : _value(value.toFloat() * 1000) {}
+    explicit FixedValue(String value) : _value((uint32_t)(value.toFloat() * 1000.0f + 0.5f)) {}
 
     operator float() const { return _value * 0.001f; }
     float val() const { return _value * 0.001f; }

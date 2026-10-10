@@ -176,7 +176,7 @@ String P1Reader::readFirstParenthesisVal(int start, int end)
   String value = "";
   int i = start + 1;
   bool trailingZero = true;
-  while ((telegram[i] != ')') && (i < end))
+  while ((i < end) && (telegram[i] != ')'))
   {
     if (trailingZero && telegram[i] == '0')
     {
@@ -197,7 +197,7 @@ String P1Reader::readUntilStar(int start, int end)
   String value = "";
   int i = start + 1;
   bool trailingZero = true;
-  while ((telegram[i] != '*') && (i < end))
+  while ((i < end) && (telegram[i] != '*'))
   {
     if (trailingZero && telegram[i] != '0')
     {
@@ -412,7 +412,7 @@ void P1Reader::OBISparser(int len)
   case 96130:
     break;
   default:
-    MainSendDebugPrintf("[P1] Onbekende OBIS-regel: %s", inString.c_str());
+    MainSendDebugPrintf("[P1] Unknown OBIS line: %s", inString.c_str());
     break;
   }
   inString = "";
@@ -456,7 +456,7 @@ bool P1Reader::CheckTimeout()
 {
   if (millis() - readStartTime >= P1TIMEOUTREAD)
   {
-    MainSendDebug("[P1] Lees-timeout bereikt");
+    MainSendDebug("[P1] Read timeout reached");
     RTS_off();
     return true;
   }

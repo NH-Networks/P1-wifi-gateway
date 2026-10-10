@@ -191,7 +191,7 @@ void TelnetMgr::SendDataGram()
     }
 
     size_t len = P1Captor.datagram.length();
-    const uint8_t *data = (const uint8_t *)P1Captor.datagram.c_str();
+    const uint8_t *data = reinterpret_cast<const uint8_t *>(P1Captor.datagram.c_str());
 
     for (int i = 0; i < MAX_SRV_CLIENTS; i++)
     {

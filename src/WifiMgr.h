@@ -48,7 +48,6 @@ class WifiMgr
   wl_status_t LastStatusEvent;
   void SetAPMod();
   bool FindThesSSID();
-  float CalcuAdjustWiFiPower();
   unsigned long LastScanSSID = millis(); //Last time when the scan of SSID was do
   unsigned long OfflineSince = 0; //Number of ms since wifi don't connected before switch to AP
   float currentPowerWifi = -1; //Power of Wifi TX interface

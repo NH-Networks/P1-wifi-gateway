@@ -122,17 +122,17 @@ void blink(int t, unsigned long speed)
 #ifdef DEBUG_SERIAL_P1
 void PrintConfigData()
 {
-  MainSendDebug("[Core] Instellingen :");
+  MainSendDebug("[Core] Settings :");
   MainSendDebugPrintf(" - ConfigVersion : %d", config_data.ConfigVersion);
-  MainSendDebugPrintf(" - Boot poging : %d", config_data.BootFailed);
+  MainSendDebugPrintf(" - Boot attempts : %d", config_data.BootFailed);
   MainSendDebugPrintf(" - Admin login : %s", config_data.adminUser);
   MainSendDebugPrintf(" - SSID : %s", config_data.ssid);
-  MainSendDebugPrintf(" - Meetinterval : %u sec", config_data.interval);
-  MainSendDebugPrintf(" - Invert high/low tarief: %s", (config_data.InverseHigh_1_2_Tarif) ? "Ja" : "Nee");
-  MainSendDebugPrintf(" - Poort 23 (Telnet) Actief : %s", (config_data.telnet) ? "Ja" : "Nee");
-  MainSendDebugPrintf("   # Poort : %u", config_data.telnetPort);
-  MainSendDebugPrintf("   # Stream Datagram : %s", (config_data.reportToTelnet) ? "Ja" : "Nee");
-  MainSendDebugPrintf("   # Send debug : %s", (config_data.debugToTelnet) ? "Ja" : "Nee");
+  MainSendDebugPrintf(" - Reading interval : %u sec", config_data.interval);
+  MainSendDebugPrintf(" - Invert high/low tariff: %s", (config_data.InverseHigh_1_2_Tarif) ? "Yes" : "No");
+  MainSendDebugPrintf(" - Port 23 (Telnet) Active : %s", (config_data.telnet) ? "Yes" : "No");
+  MainSendDebugPrintf("   # Port : %u", config_data.telnetPort);
+  MainSendDebugPrintf("   # Stream Datagram : %s", (config_data.reportToTelnet) ? "Yes" : "No");
+  MainSendDebugPrintf("   # Send debug : %s", (config_data.debugToTelnet) ? "Yes" : "No");
   Yield_Delay(20);
 }
 #endif
@@ -219,11 +219,11 @@ void setup()
 
     if (config_data.ConfigVersion != SETTINGVERSION)
     {
-      MainSendDebugPrintf("[Core] Instellingen migreren/bijwerken (was:%d nieuw:%d)", config_data.ConfigVersion, SETTINGVERSION);
+      MainSendDebugPrintf("[Core] Migrating/updating settings (was:%d new:%d)", config_data.ConfigVersion, SETTINGVERSION);
     }
     else
     {
-      MainSendDebugPrintf("[Core] Te veel boot failures (%d), reset!", config_data.BootFailed);
+      MainSendDebugPrintf("[Core] Too many boot failures (%d), reset to defaults!", config_data.BootFailed);
     }
 
     blink(20, 50UL);
@@ -248,7 +248,7 @@ void setup()
     {
       strncpy(config_data.ssid, savedSsid, sizeof(config_data.ssid) - 1);
       strncpy(config_data.password, savedPass, sizeof(config_data.password) - 1);
-      MainSendDebugPrintf("[Core] WiFi instellingen succesvol gemigreerd voor SSID '%s'", config_data.ssid);
+      MainSendDebugPrintf("[Core] WiFi settings successfully migrated for SSID '%s'", config_data.ssid);
     }
   }
   else

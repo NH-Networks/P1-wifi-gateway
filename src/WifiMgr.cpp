@@ -48,7 +48,7 @@ void WifiMgr::DoMe()
     // Auto-reconnect if AP has been running with no client connected for over 5 minutes
     if (WiFi.softAPgetStationNum() == 0 && APtimer > 0 && (millis() - APtimer > 300000))
     {
-      MainSendDebug("[WIFI] In AP-modus zonder verbonden clients voor >5 min; opnieuw verbinden met WiFi...");
+      MainSendDebug("[WIFI] In AP mode with no connected clients for >5 min; reconnecting to WiFi...");
       APtimer = millis();
       Reconnect();
       return;
@@ -72,7 +72,7 @@ String WifiMgr::CurrentIP()
 
 bool WifiMgr::FindThesSSID()
 {
-  MainSendDebugPrintf("[WIFI] Zoeken naar SSID: %s", conf.ssid);
+  MainSendDebugPrintf("[WIFI] Looking for SSID: %s", conf.ssid);
   
   int numNetworks = WiFi.scanNetworks();
   if (numNetworks <= 0)
@@ -118,9 +118,8 @@ String WifiMgr::StatusIdToString(wl_status_t status)
   }
 }
 
-WifiMgr::WifiMgr(settings &currentConf) : conf(currentConf)
+WifiMgr::WifiMgr(settings &currentConf) : conf(currentConf), LastStatusEvent(WL_IDLE_STATUS)
 {
-  LastStatusEvent = WL_IDLE_STATUS;
   WiFi.persistent(true);
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
@@ -136,7 +135,7 @@ void WifiMgr::Connect()
 {
   if (conf.ssid[0] != '\0')
   {
-    MainSendDebugPrintf("[WIFI] Verbinden met '%s'", conf.ssid);
+    MainSendDebugPrintf("[WIFI] Connecting to '%s'", conf.ssid);
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
     WiFi.begin(conf.ssid, conf.password);
@@ -149,7 +148,7 @@ void WifiMgr::Connect()
 
       if (tries++ >= 30)
       {
-        MainSendDebugPrintf("[WIFI] Kan geen verbinding maken met '%s'. AP-modus geactiveerd.", conf.ssid);
+        MainSendDebugPrintf("[WIFI] Cannot connect to '%s'. AP mode activated.", conf.ssid);
         SetAPMod();
         break;
       }
@@ -159,10 +158,10 @@ void WifiMgr::Connect()
     {
       WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &event)
       {
-        MainSendDebugPrintf("[WIFI] Verbinding verbroken (reden: %u)", (unsigned int)event.reason);
+        MainSendDebugPrintf("[WIFI] Connection lost (reason: %u)", (unsigned int)event.reason);
       });
       WiFi.setAutoReconnect(true);
-      MainSendDebugPrintf("[WIFI] Verbonden, IP: %s", WiFi.localIP().toString().c_str());
+      MainSendDebugPrintf("[WIFI] Connected, IP: %s", WiFi.localIP().toString().c_str());
       setRFPower();
       digitalWrite(LED_BUILTIN, LED_OFF);
     }
@@ -175,7 +174,7 @@ void WifiMgr::Connect()
 
 void WifiMgr::Reconnect()
 {
-  MainSendDebugPrintf("[WIFI] Opnieuw verbinden met '%s'...", conf.ssid);
+  MainSendDebugPrintf("[WIFI] Reconnecting to '%s'...", conf.ssid);
   WiFi.mode(WIFI_STA);
   WiFi.begin(conf.ssid, conf.password);
   byte tries = 0;
@@ -185,13 +184,13 @@ void WifiMgr::Reconnect()
     Yield_Delay(300);
     if (tries++ >= 30)
     {
-      MainSendDebugPrintf("[WIFI] Kan niet verbinden met '%s', terug naar AP-modus", conf.ssid);
+      MainSendDebugPrintf("[WIFI] Cannot connect to '%s', returning to AP mode", conf.ssid);
       SetAPMod();
       return;
     }
   }
 
-  MainSendDebugPrintf("[WIFI] Opnieuw verbonden, IP: %s", WiFi.localIP().toString().c_str());
+  MainSendDebugPrintf("[WIFI] Reconnected, IP: %s", WiFi.localIP().toString().c_str());
   setRFPower();
   digitalWrite(LED_BUILTIN, LED_OFF);
 }
@@ -207,7 +206,7 @@ void WifiMgr::SetAPMod()
 
   WiFi.mode(WIFI_AP);
   WiFi.softAP(GetClientName(), "");
-  MainSendDebugPrintf("[WIFI] Setup AP '%s' gestart (IP: %s)", GetClientName(), WiFi.softAPIP().toString().c_str());
+  MainSendDebugPrintf("[WIFI] Setup AP '%s' started (IP: %s)", GetClientName(), WiFi.softAPIP().toString().c_str());
   APtimer = millis();
 }
 
@@ -221,9 +220,4 @@ void WifiMgr::setRFPower()
   // Full transmit power (20.5 dBm) for maximum penetration through metal meter cabinets
   WiFi.setOutputPower(20.5);
   currentPowerWifi = 20.5;
-}
-
-float WifiMgr::CalcuAdjustWiFiPower()
-{
-  return 20.5;
 }
