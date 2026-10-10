@@ -643,7 +643,7 @@ void HTTPMgr::SendWithHeaderFooter(const char *content_type, const char *content
 
   static const char template_html_footer[] PROGMEM = R"(
 <div class="status-bar">
-<div class="item"><span class="indicator" id="Port23-indicator"></span><span class="text">Poort 23</span></div>
+<div class="item"><span class="indicator" id="Port23-indicator"></span><span class="text">)" LANG_STATUS_PORT23 R"(</span></div>
 <div class="item"><span class="indicator" id="P1-indicator"></span><span class="text">P1</span></div>
 </div></div>
 )" LANG_OTAFIRMWARE R"( : v%s.%d  | <a href="https://github.com/romix123/P1-wifi-gateway" target="_blank">Github</a></body></html>
@@ -676,19 +676,19 @@ void HTTPMgr::handleDebug()
   static const char template_html[] PROGMEM = R"raw(
 <fieldset><legend>%s</legend>
 <table class="info-table">
-<tr><td>Meter Identificatie</td><td>%s</td></tr>
-<tr><td>Laatste P1 Uitlezing</td><td>%s</td></tr>
-<tr><td>Datagram Lengte</td><td>%u bytes</td></tr>
-<tr><td>WiFi Signaal (RSSI)</td><td>%d dBm</td></tr>
-<tr><td>WiFi IP-adres</td><td>%s</td></tr>
-<tr><td>Uptime</td><td>%s</td></tr>
-<tr><td>Vrij Geheugen (Heap)</td><td>%u bytes</td></tr>
-<tr><td>Poort 23 Status</td><td>%s (%u clients)</td></tr>
+<tr><td>)raw" LANG_DEBUG_METERID R"raw(</td><td>%s</td></tr>
+<tr><td>)raw" LANG_DEBUG_LASTREAD R"raw(</td><td>%s</td></tr>
+<tr><td>)raw" LANG_DEBUG_DATALEN R"raw(</td><td>%u bytes</td></tr>
+<tr><td>)raw" LANG_DEBUG_WIFIRSSI R"raw(</td><td>%d dBm</td></tr>
+<tr><td>)raw" LANG_DEBUG_WIFIIP R"raw(</td><td>%s</td></tr>
+<tr><td>)raw" LANG_DEBUG_UPTIME R"raw(</td><td>%s</td></tr>
+<tr><td>)raw" LANG_DEBUG_FREEHEAP R"raw(</td><td>%u bytes</td></tr>
+<tr><td>)raw" LANG_DEBUG_PORT23STATUS R"raw(</td><td>%s (%u clients)</td></tr>
 </table>
 </fieldset>
-<fieldset><legend>Live P1 &amp; Systeem Debug Log</legend>
-<div class="terminal" id="termLogs">Logs laden...</div>
-<button type="button" class="bt" id="btnRefreshLog" onclick="fetchLogs()" style="margin-top:8px">Log Verversen</button>
+<fieldset><legend>)raw" LANG_DEBUG_LIVETITLE R"raw(</legend>
+<div class="terminal" id="termLogs">)raw" LANG_DEBUG_LOADING R"raw(</div>
+<button type="button" class="bt" id="btnRefreshLog" onclick="fetchLogs()" style="margin-top:8px">)raw" LANG_DEBUG_REFRESH R"raw(</button>
 </fieldset>
 <a href="/raw" class="bt">%s</a>
 <a href="/P1.json" class="bt">%s</a>
@@ -719,12 +719,12 @@ setInterval(fetchLogs, 4000);
   snprintf(uptimeStr, sizeof(uptimeStr), "%ud %uh %um %us", d, h, m, sec);
 
   const char *mName = P1Captor.meterName.length() > 0 ? P1Captor.meterName.c_str() : "Sagemcom / DSMR 5.0";
-  const char *lastTs = P1Captor.DataReaded.P1timestamp[0] != '\0' ? P1Captor.DataReaded.P1timestamp : "Wachten op data...";
+  const char *lastTs = P1Captor.DataReaded.P1timestamp[0] != '\0' ? P1Captor.DataReaded.P1timestamp : LANG_DEBUG_WAITDATA;
   size_t dLen = P1Captor.datagram.length();
   int rssi = WiFi.RSSI();
   uint32_t freeHeap = ESP.getFreeHeap();
   uint8_t clients = (TelnetSrv != nullptr) ? TelnetSrv->GetConnectedClientCount() : 0;
-  const char *telnetState = (TelnetSrv != nullptr) ? "Actief" : "Uitgeschakeld";
+  const char *telnetState = (TelnetSrv != nullptr) ? LANG_DEBUG_ACTIVE : LANG_DEBUG_DISABLED;
 
   snprintf_P(HTMLBufferContent, sizeof(HTMLBufferContent), template_html,
              LANG_DEBUGH1,
