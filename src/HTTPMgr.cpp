@@ -121,7 +121,7 @@ void HTTPMgr::handleRoot()
 
   static const char template_html[] PROGMEM = R"raw(
     <div style="margin:-4px 0 16px;padding:9px 14px;background:rgba(15,23,42,0.6);border:1px solid var(--border);border-radius:8px;font-size:0.92em;display:flex;align-items:center;justify-content:center;gap:8px">
-      <span style="display:inline-block;width:9px;height:9px;background:#22c55e;border-radius:9999px;box-shadow:0 0 6px #22c55e"></span>
+      <span class="indicator" id="meter-dot" style="margin-right:0"></span>
       <span style="color:var(--muted)">Smart Meter:</span> <strong style="color:#f1f5f9">%s</strong>
     </div>
     <fieldset><legend>)raw" LANG_H1DATA R"raw(</legend>
@@ -302,7 +302,7 @@ a:hover{text-decoration:underline}
 .row input{width:38%!important;text-align:right}
 svg{display:block;margin:auto}
 .status-bar{display:flex;justify-content:flex-end;margin-top:14px;padding:12px 4px 4px;border-top:1px solid var(--border)}
-.status-bar .indicator{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);margin-right:6px;display:inline-block}
+.indicator{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);margin-right:6px;display:inline-block}
 .error{background:var(--red)!important;box-shadow:0 0 8px var(--red)!important}
 .status-bar .text{margin-left:2px;color:var(--muted);font-size:.9em}
 .status-bar .item{display:flex;align-items:center;margin-left:14px}
@@ -323,7 +323,7 @@ void HTTPMgr::handleMainJS()
   if (ActifCache(true))
     return;
 
-  static const char js[] PROGMEM = R"(function parseDateTime(t){return new Date("20"+t.substring(0,2),t.substring(2,4)-1,t.substring(4,6),t.substring(6,8),t.substring(8,10),t.substring(10,12))}async function updateStatus(){try{let e=await fetch("status.json"),s=await e.json();const p=document.getElementById("Port23-indicator");if(null!=p){(s.Port23&&s.Port23.Active)?p.classList.remove("error"):p.classList.add("error")}const n=document.getElementById("P1-indicator");if(""!=s.P1.LastSample){var t=parseDateTime(s.P1.LastSample);t.setSeconds(t.getSeconds()+3*s.P1.Interval);t<Date.now()?n.classList.add("error"):n.classList.remove("error")}else{n.classList.add("error")}}catch(t){console.error("Error on update status:",t)}}window.onload=function(){updateStatus();document.querySelectorAll(".bwarning").forEach((t=>{t.addEventListener("click",(function(t){confirm(")" LANG_ASKCONFIRM R"(")||t.preventDefault()}))})),setInterval(updateStatus,1e4)};)";
+  static const char js[] PROGMEM = R"(function parseDateTime(t){return new Date("20"+t.substring(0,2),t.substring(2,4)-1,t.substring(4,6),t.substring(6,8),t.substring(8,10),t.substring(10,12))}async function updateStatus(){try{let e=await fetch("status.json"),s=await e.json();const p=document.getElementById("Port23-indicator");if(null!=p){(s.Port23&&s.Port23.Active)?p.classList.remove("error"):p.classList.add("error")}const n=document.getElementById("P1-indicator"),m=document.getElementById("meter-dot");if(""!=s.P1.LastSample){var t=parseDateTime(s.P1.LastSample);t.setSeconds(t.getSeconds()+3*s.P1.Interval);var isErr=(t<Date.now());if(null!=n){isErr?n.classList.add("error"):n.classList.remove("error")}if(null!=m){isErr?m.classList.add("error"):m.classList.remove("error")}}else{if(null!=n)n.classList.add("error");if(null!=m)m.classList.add("error")}}catch(t){console.error("Error on update status:",t)}}window.onload=function(){updateStatus();document.querySelectorAll(".bwarning").forEach((t=>{t.addEventListener("click",(function(t){confirm(")" LANG_ASKCONFIRM R"(")||t.preventDefault()}))})),setInterval(updateStatus,1e4)};)";
 
   server.send(200, "application/javascript", js);
 }
@@ -483,7 +483,15 @@ void HTTPMgr::handleSetupSave()
     strcpy(NewConf.adminUser, conf.adminUser);
 
     server.arg("ssid").toCharArray(NewConf.ssid, sizeof(NewConf.ssid));
-    server.arg("password").toCharArray(NewConf.password, sizeof(NewConf.password));
+    if (server.hasArg("password") && server.arg("password").length() > 0)
+    {
+      server.arg("password").toCharArray(NewConf.password, sizeof(NewConf.password));
+    }
+    else
+    {
+      strncpy(NewConf.password, conf.password, sizeof(NewConf.password) - 1);
+      NewConf.password[sizeof(NewConf.password) - 1] = '\0';
+    }
 
     NewConf.interval = server.arg("interval").toInt();
     if (NewConf.interval < 1) NewConf.interval = 10;
