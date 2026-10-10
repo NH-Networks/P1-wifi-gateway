@@ -47,6 +47,8 @@ void HTTPMgr::start_webservices()
   server.on("/reboot", std::bind(&HTTPMgr::handleReboot, this));
   server.on("/P1", std::bind(&HTTPMgr::handleP1, this));
   server.on("/raw", std::bind(&HTTPMgr::handleRAW, this));
+  server.on("/Data", std::bind(&HTTPMgr::handleRAW, this));
+  server.on("/data", std::bind(&HTTPMgr::handleRAW, this));
 
   // OTA firmware update
   server.on("/update", HTTP_GET, std::bind(&HTTPMgr::handleUploadForm, this));
