@@ -64,6 +64,9 @@ private:
   void handleMainJS();
   void handleReboot();
   void handleHelp();
+  void handleApiInfo();
+  void handleApiData();
+  void handleApiTelegram();
 
   void RebootPage(const char *Message);
   bool ActifCache(bool);

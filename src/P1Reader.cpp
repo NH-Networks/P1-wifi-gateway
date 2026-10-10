@@ -100,7 +100,11 @@ String P1Reader::identifyMeter(String Name)
   {
     return "Sagemcom T210-D";
   }
-  return "Slimme Meter";
+  if (Name.indexOf("Ene5\\XS210") != -1 || Name.indexOf("XS210") != -1)
+  {
+    return "Sagemcom XS210 (ESMR 5.0)";
+  }
+  return "Smart Meter";
 }
 
 void P1Reader::decodeTelegram(int len)
@@ -253,7 +257,9 @@ void P1Reader::OBISparser(int len)
   {
   case 0:
     break;
-  case 9614: // device type
+  case 13028: // 1-3:0.2.8(50) ESMR 5.0 version
+  case 28:    // 0-0:0.2.8 version
+  case 9614:  // 0-0:96.1.4 device type
     readFirstParenthesisVal(i, len).toCharArray(DataReaded.P1version, sizeof(DataReaded.P1version));
     break;
   case 100:
@@ -387,6 +393,7 @@ void P1Reader::OBISparser(int len)
   case 42421: // Gas channel 4
   case 12423: // Gas channel 1 (België Fluvius)
   case 22423: // Gas channel 2 (België Fluvius)
+    readFirstParenthesisVal(i, len).toCharArray(DataReaded.gasTimestamp, sizeof(DataReaded.gasTimestamp));
     readBetweenDoubleParenthesis(i, len).toCharArray(DataReaded.gasReceived5min, sizeof(DataReaded.gasReceived5min));
     readBetweenDoubleParenthesis(i, len).toCharArray(DataReaded.gasDomoticz, sizeof(DataReaded.gasDomoticz));
     break;
@@ -404,6 +411,10 @@ void P1Reader::OBISparser(int len)
       i++;
     }
     break;
+  case 12410: // 0-1:24.1.0 Gas M-Bus device type
+  case 22410:
+  case 32410:
+  case 42410:
   case 10140:
   case 10160:
   case 96310:

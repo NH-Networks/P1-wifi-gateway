@@ -140,4 +140,9 @@
 #define LANG_HELP_BTN_PWD "<b>Credentials (/setPassword):</b> Set or change the administrator login password."
 #define LANG_HELP_BTN_OTA "<b>Firmware Update (/update):</b> Flash new firmware binaries (.bin) via browser OTA."
 #define LANG_HELP_BTN_REBOOT "<b>Reboot &amp; Reset:</b> Safely restart the gateway (/reboot) or restore factory defaults (/reset)."
+#define LANG_HELP_EVCC_TITLE "EV Charger & Battery APIs (Zaptec, EVCC, Victron)"
+#define LANG_HELP_API_HW "<b>HomeWizard API (/api/v1/data):</b> Standardized local REST API with out-of-the-box support for EVCC, Zaptec solar charging, and home battery EMS."
+#define LANG_HELP_API_P1JSON "<b>Extended P1 JSON (/P1.json):</b> Includes Net_W (instant net Watts; negative = solar surplus) and per-phase active power (W.L1, W.L2, W.L3)."
+#define LANG_HELP_API_TELEGRAM "<b>HTTP Telegram (/api/v1/telegram):</b> Live unprocessed DSMR datagram over HTTP."
+#define LANG_HELP_API_INFO "<b>Device Info (/api):</b> Returns product type (HWE-P1), MAC, and firmware version."
 #endif

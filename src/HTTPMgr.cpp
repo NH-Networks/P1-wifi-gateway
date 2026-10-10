@@ -53,6 +53,9 @@ void HTTPMgr::start_webservices()
   server.on("/debug.log", std::bind(&HTTPMgr::handleDebugLog, this));
   server.on("/Help", std::bind(&HTTPMgr::handleHelp, this));
   server.on("/help", std::bind(&HTTPMgr::handleHelp, this));
+  server.on("/api", HTTP_GET, std::bind(&HTTPMgr::handleApiInfo, this));
+  server.on("/api/v1/data", HTTP_GET, std::bind(&HTTPMgr::handleApiData, this));
+  server.on("/api/v1/telegram", HTTP_GET, std::bind(&HTTPMgr::handleApiTelegram, this));
 
   // OTA firmware update
   server.on("/update", HTTP_GET, std::bind(&HTTPMgr::handleUploadForm, this));
@@ -121,6 +124,7 @@ void HTTPMgr::handleRoot()
     <a href="/P1" class="bt">)" LANG_MENUP1 R"(</a>
     <a href="/raw" class="bt">)" LANG_SHOWRAW R"(</a>
     <a href="/P1.json" class="bt">)" LANG_SHOWJSON R"(</a>
+    <a href="/api/v1/data" class="bt">HomeWizard API</a>
     <a href="/debug" class="bt">)" LANG_MENUDEBUG R"(</a>
     </fieldset>
     <fieldset><legend>)" LANG_ConfH1 R"(</legend>
@@ -562,6 +566,20 @@ void HTTPMgr::handleJSON()
   doc["P1"]["RT2"] = P1Captor.DataReaded.electricityReturnedTariff2.val();
   doc["P1"]["TA"] = P1Captor.DataReaded.actualElectricityPowerDeli.val();
   doc["P1"]["RTA"] = P1Captor.DataReaded.actualElectricityPowerRet.val();
+
+  // Instantaneous Net Active Power in Watts (positive = import, negative = solar surplus)
+  float pDeli = P1Captor.DataReaded.actualElectricityPowerDeli.val();
+  float pRet = P1Captor.DataReaded.actualElectricityPowerRet.val();
+  doc["P1"]["Net_W"] = (int)round((pDeli - pRet) * 1000.0f);
+
+  // Per-phase active power in Watts (positive = import, negative = solar surplus)
+  doc["P1"]["W"]["L1"] = (int)round((P1Captor.DataReaded.activePowerL1P.val() - P1Captor.DataReaded.activePowerL1NP.val()) * 1000.0f);
+  doc["P1"]["W"]["L2"] = (int)round((P1Captor.DataReaded.activePowerL2P.val() - P1Captor.DataReaded.activePowerL2NP.val()) * 1000.0f);
+  doc["P1"]["W"]["L3"] = (int)round((P1Captor.DataReaded.activePowerL3P.val() - P1Captor.DataReaded.activePowerL3NP.val()) * 1000.0f);
+
+  doc["P1"]["Tariff"] = (P1Captor.DataReaded.tariffIndicatorElectricity > 0) ? P1Captor.DataReaded.tariffIndicatorElectricity : 1;
+  doc["P1"]["EquipmentId"] = P1Captor.DataReaded.equipmentId;
+
   doc["P1"]["V"]["L1"] = P1Captor.DataReaded.instantaneousVoltageL1.val();
   doc["P1"]["V"]["L2"] = P1Captor.DataReaded.instantaneousVoltageL2.val();
   doc["P1"]["V"]["L3"] = P1Captor.DataReaded.instantaneousVoltageL3.val();
@@ -573,8 +591,113 @@ void HTTPMgr::handleJSON()
   String str;
   serializeJson(doc, str);
 
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   ActifCache(false);
   server.send(200, "application/json", str);
+}
+
+void HTTPMgr::handleApiInfo()
+{
+  JsonDocument doc;
+  String mac = WiFi.macAddress();
+  mac.replace(":", "");
+  mac.toLowerCase();
+
+  doc["product_type"] = "HWE-P1";
+  doc["product_name"] = "P1 Meter";
+  doc["serial"] = mac;
+  doc["firmware_version"] = VERSION;
+  doc["api_version"] = "v1";
+
+  String out;
+  serializeJson(doc, out);
+
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  ActifCache(false);
+  server.send(200, "application/json", out);
+}
+
+void HTTPMgr::handleApiData()
+{
+  JsonDocument doc;
+
+  doc["wifi_ssid"] = WiFi.SSID();
+
+  int rssi = WiFi.RSSI();
+  int quality = 2 * (rssi + 100);
+  if (quality < 0) quality = 0;
+  if (quality > 100) quality = 100;
+  doc["wifi_strength"] = quality;
+
+  int smr = atoi(P1Captor.DataReaded.P1version);
+  if (smr == 0) smr = 50;
+  doc["smr_version"] = smr;
+
+  doc["meter_model"] = (P1Captor.meterName.length() > 0) ? P1Captor.meterName : "Smart Meter";
+  doc["unique_id"] = P1Captor.DataReaded.equipmentId;
+  doc["active_tariff"] = (P1Captor.DataReaded.tariffIndicatorElectricity > 0) ? P1Captor.DataReaded.tariffIndicatorElectricity : 1;
+
+  float importT1 = P1Captor.DataReaded.electricityUsedTariff1.val();
+  float importT2 = P1Captor.DataReaded.electricityUsedTariff2.val();
+  float exportT1 = P1Captor.DataReaded.electricityReturnedTariff1.val();
+  float exportT2 = P1Captor.DataReaded.electricityReturnedTariff2.val();
+
+  doc["total_power_import_kwh"] = importT1 + importT2;
+  doc["total_power_import_t1_kwh"] = importT1;
+  doc["total_power_import_t2_kwh"] = importT2;
+  doc["total_power_export_kwh"] = exportT1 + exportT2;
+  doc["total_power_export_t1_kwh"] = exportT1;
+  doc["total_power_export_t2_kwh"] = exportT2;
+
+  // Active power in Watts (positive = import, negative = export / solar surplus)
+  float pDeli = P1Captor.DataReaded.actualElectricityPowerDeli.val();
+  float pRet = P1Captor.DataReaded.actualElectricityPowerRet.val();
+  int netPowerW = (int)round((pDeli - pRet) * 1000.0f);
+  doc["active_power_w"] = netPowerW;
+
+  int pL1 = (int)round((P1Captor.DataReaded.activePowerL1P.val() - P1Captor.DataReaded.activePowerL1NP.val()) * 1000.0f);
+  int pL2 = (int)round((P1Captor.DataReaded.activePowerL2P.val() - P1Captor.DataReaded.activePowerL2NP.val()) * 1000.0f);
+  int pL3 = (int)round((P1Captor.DataReaded.activePowerL3P.val() - P1Captor.DataReaded.activePowerL3NP.val()) * 1000.0f);
+
+  doc["active_power_l1_w"] = pL1;
+  doc["active_power_l2_w"] = pL2;
+  doc["active_power_l3_w"] = pL3;
+
+  doc["active_voltage_l1_v"] = P1Captor.DataReaded.instantaneousVoltageL1.val();
+  doc["active_voltage_l2_v"] = P1Captor.DataReaded.instantaneousVoltageL2.val();
+  doc["active_voltage_l3_v"] = P1Captor.DataReaded.instantaneousVoltageL3.val();
+
+  doc["active_current_l1_a"] = P1Captor.DataReaded.instantaneousCurrentL1.val();
+  doc["active_current_l2_a"] = P1Captor.DataReaded.instantaneousCurrentL2.val();
+  doc["active_current_l3_a"] = P1Captor.DataReaded.instantaneousCurrentL3.val();
+
+  if (strlen(P1Captor.DataReaded.gasReceived5min) > 0)
+  {
+    doc["total_gas_m3"] = atof(P1Captor.DataReaded.gasReceived5min);
+    if (strlen(P1Captor.DataReaded.gasTimestamp) > 0)
+    {
+      String gts = P1Captor.DataReaded.gasTimestamp;
+      if (gts.endsWith("S") || gts.endsWith("W"))
+      {
+        gts.remove(gts.length() - 1);
+      }
+      doc["gas_timestamp"] = gts;
+    }
+  }
+
+  String out;
+  serializeJson(doc, out);
+
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  ActifCache(false);
+  server.send(200, "application/json", out);
+}
+
+void HTTPMgr::handleApiTelegram()
+{
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  ActifCache(false);
+  server.send(200, "text/plain", P1Captor.datagram);
 }
 
 bool HTTPMgr::ChekifAsAdmin()
@@ -768,6 +891,14 @@ void HTTPMgr::handleHelp()
 <div class="help-item">)raw" LANG_HELP_BTN_PWD R"raw(</div>
 <div class="help-item">)raw" LANG_HELP_BTN_OTA R"raw(</div>
 <div class="help-item">)raw" LANG_HELP_BTN_REBOOT R"raw(</div>
+</div>
+</fieldset>
+<fieldset><legend>)raw" LANG_HELP_EVCC_TITLE R"raw(</legend>
+<div class="help-list">
+<div class="help-item">)raw" LANG_HELP_API_HW R"raw(</div>
+<div class="help-item">)raw" LANG_HELP_API_P1JSON R"raw(</div>
+<div class="help-item">)raw" LANG_HELP_API_TELEGRAM R"raw(</div>
+<div class="help-item">)raw" LANG_HELP_API_INFO R"raw(</div>
 </div>
 </fieldset>
 <a href="https://github.com/NH-Networks/P1-wifi-gateway" target="_blank" class="bt" style="background:#1e293b;border:1px solid var(--border)">GitHub Repository</a>

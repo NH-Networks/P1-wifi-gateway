@@ -77,6 +77,7 @@ public:
   {
     char gasReceived5min[12];
     char gasDomoticz[12]; // Domoticz wil gas niet in decimalen?
+    char gasTimestamp[16] = "\0";
     char P1version[8];
     char P1timestamp[13] = "\0";
     char equipmentId[100] = "\0";
