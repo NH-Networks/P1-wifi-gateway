@@ -119,23 +119,32 @@ void HTTPMgr::handleRoot()
     return;
   }
 
-  static const char template_html[] PROGMEM = R"(
-    <fieldset><legend>)" LANG_H1DATA R"(</legend>
-    <a href="/P1" class="bt">)" LANG_MENUP1 R"(</a>
-    <a href="/raw" class="bt">)" LANG_SHOWRAW R"(</a>
-    <a href="/P1.json" class="bt">)" LANG_SHOWJSON R"(</a>
-    <a href="/api/v1/data" class="bt">HomeWizard API</a>
-    <a href="/debug" class="bt">)" LANG_MENUDEBUG R"(</a>
+  static const char template_html[] PROGMEM = R"raw(
+    <div style="margin:-4px 0 16px;padding:9px 14px;background:rgba(15,23,42,0.6);border:1px solid var(--border);border-radius:8px;font-size:0.92em;display:flex;align-items:center;justify-content:center;gap:8px">
+      <span style="display:inline-block;width:9px;height:9px;background:#22c55e;border-radius:9999px;box-shadow:0 0 6px #22c55e"></span>
+      <span style="color:var(--muted)">Smart Meter:</span> <strong style="color:#f1f5f9">%s</strong>
+    </div>
+    <fieldset><legend>)raw" LANG_H1DATA R"raw(</legend>
+    <a href="/P1" class="bt">)raw" LANG_MENUP1 R"raw(</a>
+    <a href="/raw" class="bt">)raw" LANG_SHOWRAW R"raw(</a>
+    <a href="/P1.json" class="bt">)raw" LANG_SHOWJSON R"raw(</a>
+    %s
+    <a href="/debug" class="bt">)raw" LANG_MENUDEBUG R"raw(</a>
     </fieldset>
-    <fieldset><legend>)" LANG_ConfH1 R"(</legend>
-    <a href="/Setup" class="bt">)" LANG_MENUConf R"(</a>
-    <a href="/setPassword" class="bt">)" LANG_MENUPASSWORD R"(</a>
-    <a href="/update" class="bt">)" LANG_MENUOTA R"(</a>
-    <a href="/reboot" class="bt bwarning">)" LANG_MENUREBOOT R"(</a>
-    <a href="/reset" class="bt bwarning">)" LANG_MENURESET R"(</a>
-    </fieldset>)";
+    <fieldset><legend>)raw" LANG_ConfH1 R"raw(</legend>
+    <a href="/Setup" class="bt">)raw" LANG_MENUConf R"raw(</a>
+    <a href="/setPassword" class="bt">)raw" LANG_MENUPASSWORD R"raw(</a>
+    <a href="/update" class="bt">)raw" LANG_MENUOTA R"raw(</a>
+    <a href="/reboot" class="bt bwarning">)raw" LANG_MENUREBOOT R"raw(</a>
+    <a href="/reset" class="bt bwarning">)raw" LANG_MENURESET R"raw(</a>
+    </fieldset>)raw";
 
-  SendWithHeaderFooter("text/html", template_html, "", false);
+  const char *mName = (P1Captor.meterName.length() > 0) ? P1Captor.meterName.c_str() : "Waiting for telegram...";
+  const char *hwButton = (conf.enableHomeWizardApi) ? "<a href=\"/api/v1/data\" class=\"bt\">HomeWizard API</a>" : "";
+
+  snprintf_P(HTMLBufferContent, sizeof(HTMLBufferContent), template_html, mName, hwButton);
+
+  SendWithHeaderFooter("text/html", HTMLBufferContent, "", false);
 }
 
 void HTTPMgr::handleUploadForm()
@@ -434,6 +443,9 @@ void HTTPMgr::handleSetup()
 <label for="reportToTelnet">)" LANG_ConfTLNETREPPORT R"( :</label><input type="checkbox" name="reportToTelnet" id="reportToTelnet" %s><br />
 <label for="debugToTelnet">)" LANG_ConfTLNETDBG R"( :</label><input type="checkbox" name="debugToTelnet" id="debugToTelnet" %s><br />
 </fieldset>
+<fieldset><legend>)" LANG_ConfHWH2 R"(</legend>
+<label for="enableHomeWizardApi">)" LANG_ConfHWBool R"( :</label><input type="checkbox" name="enableHomeWizardApi" id="enableHomeWizardApi" %s><br />
+</fieldset>
 <span id="passwordError" class="error"></span>
 <button type="submit">)" LANG_ACTIONSAVE R"(</button></form>
 <a href="/" class="bt">)" LANG_MENU R"(</a>
@@ -450,7 +462,8 @@ void HTTPMgr::handleSetup()
              (conf.telnet) ? "checked" : "",
              conf.telnetPort ? conf.telnetPort : 23,
              (conf.reportToTelnet) ? "checked" : "",
-             (conf.debugToTelnet) ? "checked" : "");
+             (conf.debugToTelnet) ? "checked" : "",
+             (conf.enableHomeWizardApi) ? "checked" : "");
 
   SendWithHeaderFooter("text/html", HTMLBufferContent, "", false);
 }
@@ -481,6 +494,7 @@ void HTTPMgr::handleSetupSave()
     if (NewConf.telnetPort == 0) NewConf.telnetPort = 23;
     NewConf.reportToTelnet = (server.arg("reportToTelnet") == "on");
     NewConf.debugToTelnet = (server.arg("debugToTelnet") == "on");
+    NewConf.enableHomeWizardApi = (server.arg("enableHomeWizardApi") == "on");
 
     NewConf.ConfigVersion = SETTINGVERSION;
 
@@ -598,6 +612,13 @@ void HTTPMgr::handleJSON()
 
 void HTTPMgr::handleApiInfo()
 {
+  if (!conf.enableHomeWizardApi)
+  {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(403, "application/json", "{\"error\":\"HomeWizard Local API is disabled in configuration\"}");
+    return;
+  }
+
   JsonDocument doc;
   String mac = WiFi.macAddress();
   mac.replace(":", "");
@@ -619,6 +640,13 @@ void HTTPMgr::handleApiInfo()
 
 void HTTPMgr::handleApiData()
 {
+  if (!conf.enableHomeWizardApi)
+  {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(403, "application/json", "{\"error\":\"HomeWizard Local API is disabled in configuration\"}");
+    return;
+  }
+
   JsonDocument doc;
 
   doc["wifi_ssid"] = WiFi.SSID();
@@ -695,6 +723,13 @@ void HTTPMgr::handleApiData()
 
 void HTTPMgr::handleApiTelegram()
 {
+  if (!conf.enableHomeWizardApi)
+  {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(403, "text/plain", "HomeWizard Local API is disabled in configuration");
+    return;
+  }
+
   server.sendHeader("Access-Control-Allow-Origin", "*");
   ActifCache(false);
   server.send(200, "text/plain", P1Captor.datagram);

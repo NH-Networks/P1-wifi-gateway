@@ -73,6 +73,8 @@
 #define LANG_ConfTLNETPort "Port number"
 #define LANG_ConfTLNETDBG "Debug via Telnet?"
 #define LANG_ConfTLNETREPPORT "Send DSMR Datagram over Telnet"
+#define LANG_ConfHWH2 "HomeWizard Local API settings"
+#define LANG_ConfHWBool "Enable HomeWizard API (/api/v1/data)"
 #define LANG_ConfSave "Save"
 #define LANG_OTAH1 "Update firmware"
 #define LANG_OTAFIRMWARE "Firmware"

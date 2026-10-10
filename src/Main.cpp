@@ -189,66 +189,79 @@ void setup()
     char savedPass[65] = "";
     bool canMigrateWifi = false;
 
-    if (config_data.BootFailed < MAXBOOTFAILURE &&
-        (config_data.ConfigVersion == 2 || config_data.ConfigVersion == 3) &&
+    if (config_data.BootFailed < MAXBOOTFAILURE && config_data.ConfigVersion == 4 &&
         config_data.ssid[0] != '\0' && (uint8_t)config_data.ssid[0] != 0xFF)
     {
-      strncpy(savedSsid, config_data.ssid, sizeof(savedSsid) - 1);
-      strncpy(savedPass, config_data.password, sizeof(savedPass) - 1);
-      canMigrateWifi = true;
-    }
-    else if (config_data.BootFailed < MAXBOOTFAILURE &&
-             config_data.ConfigVersion == 'j') // Romix 1.1bcd (dataSet[0] == 'j')
-    {
-      // Romix 1.1 layout: dataSet[4], ssid[32] at offset 4, password[64] at offset 36
-      for (int i = 0; i < 32; i++) { savedSsid[i] = (char)EEPROM.read(4 + i); }
-      savedSsid[32] = '\0';
-      for (int i = 0; i < 64; i++) { savedPass[i] = (char)EEPROM.read(36 + i); }
-      savedPass[64] = '\0';
-
-      if (savedSsid[0] != '\0' && (uint8_t)savedSsid[0] != 0xFF)
-      {
-        canMigrateWifi = true;
-      }
-      else
-      {
-        savedSsid[0] = '\0';
-        savedPass[0] = '\0';
-      }
-    }
-
-    if (config_data.ConfigVersion != SETTINGVERSION)
-    {
       MainSendDebugPrintf("[Core] Migrating/updating settings (was:%d new:%d)", config_data.ConfigVersion, SETTINGVERSION);
+      config_data.ConfigVersion = SETTINGVERSION;
+      config_data.BootFailed = 0;
+      config_data.enableHomeWizardApi = true;
+      MainSendDebug("[Core] Preserved all v4 settings and enabled HomeWizard API");
     }
     else
     {
-      MainSendDebugPrintf("[Core] Too many boot failures (%d), reset to defaults!", config_data.BootFailed);
-    }
+      if (config_data.BootFailed < MAXBOOTFAILURE &&
+          (config_data.ConfigVersion == 2 || config_data.ConfigVersion == 3) &&
+          config_data.ssid[0] != '\0' && (uint8_t)config_data.ssid[0] != 0xFF)
+      {
+        strncpy(savedSsid, config_data.ssid, sizeof(savedSsid) - 1);
+        strncpy(savedPass, config_data.password, sizeof(savedPass) - 1);
+        canMigrateWifi = true;
+      }
+      else if (config_data.BootFailed < MAXBOOTFAILURE &&
+               config_data.ConfigVersion == 'j') // Romix 1.1bcd (dataSet[0] == 'j')
+      {
+        // Romix 1.1 layout: dataSet[4], ssid[32] at offset 4, password[64] at offset 36
+        for (int i = 0; i < 32; i++) { savedSsid[i] = (char)EEPROM.read(4 + i); }
+        savedSsid[32] = '\0';
+        for (int i = 0; i < 64; i++) { savedPass[i] = (char)EEPROM.read(36 + i); }
+        savedPass[64] = '\0';
 
-    blink(20, 50UL);
+        if (savedSsid[0] != '\0' && (uint8_t)savedSsid[0] != 0xFF)
+        {
+          canMigrateWifi = true;
+        }
+        else
+        {
+          savedSsid[0] = '\0';
+          savedPass[0] = '\0';
+        }
+      }
 
-    config_data = (settings){
-      SETTINGVERSION, // ConfigVersion
-      0,              // BootFailed
-      (savedSsid[0] == '\0'), // NeedConfig: false als we WiFi migreren, true bij schone reset
-      "",             // ssid
-      "",             // password
-      10,             // interval
-      false,          // InverseHigh_1_2_Tarif
-      true,           // telnet
-      true,           // reportToTelnet
-      false,          // debugToTelnet
-      23,             // telnetPort
-      "",             // adminPassword
-      "admin"         // adminUser
-    };
+      if (config_data.ConfigVersion != SETTINGVERSION)
+      {
+        MainSendDebugPrintf("[Core] Migrating/updating settings (was:%d new:%d)", config_data.ConfigVersion, SETTINGVERSION);
+      }
+      else
+      {
+        MainSendDebugPrintf("[Core] Too many boot failures (%d), reset to defaults!", config_data.BootFailed);
+      }
 
-    if (canMigrateWifi)
-    {
-      strncpy(config_data.ssid, savedSsid, sizeof(config_data.ssid) - 1);
-      strncpy(config_data.password, savedPass, sizeof(config_data.password) - 1);
-      MainSendDebugPrintf("[Core] WiFi settings successfully migrated for SSID '%s'", config_data.ssid);
+      blink(20, 50UL);
+
+      config_data = (settings){
+        SETTINGVERSION, // ConfigVersion
+        0,              // BootFailed
+        (savedSsid[0] == '\0'), // NeedConfig: false als we WiFi migreren, true bij schone reset
+        "",             // ssid
+        "",             // password
+        10,             // interval
+        false,          // InverseHigh_1_2_Tarif
+        true,           // telnet
+        true,           // reportToTelnet
+        false,          // debugToTelnet
+        23,             // telnetPort
+        "",             // adminPassword
+        "admin",        // adminUser
+        true            // enableHomeWizardApi
+      };
+
+      if (canMigrateWifi)
+      {
+        strncpy(config_data.ssid, savedSsid, sizeof(config_data.ssid) - 1);
+        strncpy(config_data.password, savedPass, sizeof(config_data.password) - 1);
+        MainSendDebugPrintf("[Core] WiFi settings successfully migrated for SSID '%s'", config_data.ssid);
+      }
     }
   }
   else

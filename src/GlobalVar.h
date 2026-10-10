@@ -33,7 +33,7 @@
 #define LED_OFF 0x1
 
 #define SETTINGVERSIONNULL 0 //= no config
-#define SETTINGVERSION 4
+#define SETTINGVERSION 5
 
 struct settings
 {
@@ -50,6 +50,7 @@ struct settings
   unsigned int telnetPort = 23;
   char adminPassword[33];
   char adminUser[33];
+  bool enableHomeWizardApi = true;
 };
 
 #ifndef LANGUAGE
