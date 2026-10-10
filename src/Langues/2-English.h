@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2025 Jean-Pierre Sneyers
- * Source : https://github.com/narfight/P1-wifi-gateway
+ * Source : https://github.com/NH-Networks/P1-wifi-gateway
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -127,4 +127,17 @@
 #define LANG_DEBUG_WAITDATA "Waiting for data..."
 #define LANG_DEBUG_ACTIVE "Active"
 #define LANG_DEBUG_DISABLED "Disabled"
+#define LANG_HELP_TITLE "Help & Documentation"
+#define LANG_HELP_PORT23_TITLE "Port 23 (DSMR Data Stream)"
+#define LANG_HELP_PORT23_DESC "Port 23 streams raw P1 datagrams in real-time over a TCP socket connection. Ideal for seamless integration with <b>Home Assistant</b> (network DSMR integration), <b>Domoticz</b>, or <b>Node-RED</b>."
+#define LANG_HELP_BUTTONS_TITLE "Features & Buttons"
+#define LANG_HELP_BTN_P1 "<b>Readings (/P1):</b> Live overview of current meter readings (off-peak/peak import &amp; export), power, phase voltage/current, and gas consumption."
+#define LANG_HELP_BTN_RAW "<b>Show datagram (/raw, /Data):</b> Unprocessed raw P1 telegram directly from the smart meter."
+#define LANG_HELP_BTN_JSON "<b>Show JSON (/P1.json):</b> Structured meter readings in JSON format for API integrations and scripts."
+#define LANG_HELP_BTN_DEBUG "<b>System &amp; Debug (/debug):</b> Live P1 logging console, WiFi signal strength (RSSI), uptime, heap memory, and port 23 status."
+#define LANG_HELP_CONFIG_TITLE "Management &amp; Settings"
+#define LANG_HELP_BTN_SETUP "<b>Configuration (/Setup):</b> Configure WiFi network, reading interval, and Port 23 parameters."
+#define LANG_HELP_BTN_PWD "<b>Credentials (/setPassword):</b> Set or change the administrator login password."
+#define LANG_HELP_BTN_OTA "<b>Firmware Update (/update):</b> Flash new firmware binaries (.bin) via browser OTA."
+#define LANG_HELP_BTN_REBOOT "<b>Reboot &amp; Reset:</b> Safely restart the gateway (/reboot) or restore factory defaults (/reset)."
 #endif

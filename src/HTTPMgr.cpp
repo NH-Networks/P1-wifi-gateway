@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2025 Jean-Pierre Sneyers, Ronald Leenes, & Contributors
- * Source : https://github.com/narfight/P1-wifi-gateway
+ * Source : https://github.com/NH-Networks/P1-wifi-gateway
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,6 +51,8 @@ void HTTPMgr::start_webservices()
   server.on("/data", std::bind(&HTTPMgr::handleRAW, this));
   server.on("/debug", std::bind(&HTTPMgr::handleDebug, this));
   server.on("/debug.log", std::bind(&HTTPMgr::handleDebugLog, this));
+  server.on("/Help", std::bind(&HTTPMgr::handleHelp, this));
+  server.on("/help", std::bind(&HTTPMgr::handleHelp, this));
 
   // OTA firmware update
   server.on("/update", HTTP_GET, std::bind(&HTTPMgr::handleUploadForm, this));
@@ -296,6 +298,9 @@ svg{display:block;margin:auto}
 .info-table td{padding:5px 4px}
 .info-table td:first-child{color:var(--muted);width:50%}
 .info-table td:last-child{text-align:right;font-weight:500;color:var(--text)}
+.help-list{display:flex;flex-direction:column;gap:10px}
+.help-item{line-height:1.45;color:var(--text);font-size:.95em}
+.help-item b{color:var(--cyan)}
 )";
   server.send(200, "text/css", css);
 }
@@ -639,14 +644,14 @@ void HTTPMgr::SendWithHeaderFooter(const char *content_type, const char *content
 %s
 </head>
 <body><div class="container"><h2>P1 wifi-gateway</h2>
-<p class="help"><a href="https://github.com/romix123/P1-wifi-gateway" target="_blank">)" LANG_HLPH1 R"(</a></p>)";
+<p class="help"><a href="/Help">)" LANG_HLPH1 R"(</a></p>)";
 
   static const char template_html_footer[] PROGMEM = R"(
 <div class="status-bar">
 <div class="item"><span class="indicator" id="Port23-indicator"></span><span class="text">)" LANG_STATUS_PORT23 R"(</span></div>
 <div class="item"><span class="indicator" id="P1-indicator"></span><span class="text">P1</span></div>
 </div></div>
-)" LANG_OTAFIRMWARE R"( : v%s.%d  | <a href="https://github.com/romix123/P1-wifi-gateway" target="_blank">Github</a></body></html>
+)" LANG_OTAFIRMWARE R"( : v%s  | <a href="https://github.com/NH-Networks/P1-wifi-gateway" target="_blank">Github</a></body></html>
 )";
 
   snprintf_P(buffer, sizeof(buffer), template_html_header,
@@ -658,8 +663,7 @@ void HTTPMgr::SendWithHeaderFooter(const char *content_type, const char *content
   server.sendContent(content);
 
   snprintf_P(buffer, sizeof(buffer), template_html_footer,
-             VERSION,
-             BUILD_DATE);
+             VERSION);
 
   server.sendContent(buffer);
   server.sendContent("");
@@ -742,4 +746,33 @@ setInterval(fetchLogs, 4000);
              LANG_MENU);
 
   SendWithHeaderFooter("text/html", HTMLBufferContent, "", false);
+}
+
+void HTTPMgr::handleHelp()
+{
+  static const char template_html[] PROGMEM = R"(
+<fieldset><legend>)" LANG_HELP_PORT23_TITLE R"(</legend>
+<p style="line-height:1.5;margin:2px 0 6px">)" LANG_HELP_PORT23_DESC R"(</p>
+</fieldset>
+<fieldset><legend>)" LANG_HELP_BUTTONS_TITLE R"(</legend>
+<div class="help-list">
+<div class="help-item">)" LANG_HELP_BTN_P1 R"(</div>
+<div class="help-item">)" LANG_HELP_BTN_RAW R"(</div>
+<div class="help-item">)" LANG_HELP_BTN_JSON R"(</div>
+<div class="help-item">)" LANG_HELP_BTN_DEBUG R"(</div>
+</div>
+</fieldset>
+<fieldset><legend>)" LANG_HELP_CONFIG_TITLE R"(</legend>
+<div class="help-list">
+<div class="help-item">)" LANG_HELP_BTN_SETUP R"(</div>
+<div class="help-item">)" LANG_HELP_BTN_PWD R"(</div>
+<div class="help-item">)" LANG_HELP_BTN_OTA R"(</div>
+<div class="help-item">)" LANG_HELP_BTN_REBOOT R"(</div>
+</div>
+</fieldset>
+<a href="https://github.com/NH-Networks/P1-wifi-gateway" target="_blank" class="bt" style="background:#1e293b;border:1px solid var(--border)">GitHub Repository</a>
+<a href="/" class="bt">)" LANG_MENU R"(</a>
+)";
+
+  SendWithHeaderFooter("text/html", template_html, "", false);
 }

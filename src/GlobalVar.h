@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2025 Jean-Pierre Sneyers, Ronald Leenes, & Contributors
- * Source : https://github.com/narfight/P1-wifi-gateway
+ * Source : https://github.com/NH-Networks/P1-wifi-gateway
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
 
 #include <Arduino.h>
 
-#define VERSION "1.04"
+#define VERSION "2.0.0"
 #define HOSTNAME "P1meter"
 
 #define CLIENTNAMESIZE 32
@@ -53,14 +53,12 @@ struct settings
 };
 
 #ifndef LANGUAGE
-  #error "LANGUAGE is niet gedefinieerd. Definieer LANGUAGE in platformio.ini"
+  #define LANGUAGE 2
 #endif
 
-#include "Langues/1-French.h"
 #include "Langues/2-English.h"
-#include "Langues/3-Dutch.h"
 
 #ifndef LANG_LOADED
-  #error "LANGUAGE heeft geen geldige waarde"
+  #error "LANGUAGE has no valid value"
 #endif
 #endif
