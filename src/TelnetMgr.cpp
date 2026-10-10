@@ -103,6 +103,7 @@ void TelnetMgr::handleNewConnections()
         {
             telnetClients[i] = telnet.accept();
             telnetClients[i].setNoDelay(true);
+            telnetClients[i].setTimeout(200);
             lastActivityTime[i] = millis();
             MainSendDebugPrintf("[TELNET] Client %d connected (%s)", i, telnetClients[i].remoteIP().toString().c_str());
             // Intentionally no banner/prompt is sent here so DSMR consumers (Home Assistant, DSMR-reader)

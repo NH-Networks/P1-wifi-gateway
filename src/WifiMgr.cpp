@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Jean-Pierre Sneyers
+ * Copyright (c) 2025 Jean-Pierre Sneyers, Ronald Leenes, & Contributors
  * Source : https://github.com/narfight/P1-wifi-gateway
  *
  * This program is free software: you can redistribute it and/or modify
@@ -14,15 +14,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
- * Additionally, please note that the original source code of this file
- * may contain portions of code derived from (or inspired by)
- * previous works by:
- *
- * Ronald Leenes (https://github.com/romix123/P1-wifi-gateway and http://esp8266thingies.nl)
  */
 
 #include "WifiMgr.h"
+
+extern char* GetClientName();
+extern void Yield_Delay(unsigned long ms);
 
 void WifiMgr::DoMe()
 {
@@ -31,30 +28,43 @@ void WifiMgr::DoMe()
     wl_status_t tmp = LastStatusEvent;
     LastStatusEvent = WiFi.status();
     
-    MainSendDebugPrintf("[WIFI][Connected:%s] Event %s -> %s", (WiFi.isConnected())? "Y" : "N", StatusIdToString(tmp).c_str(), StatusIdToString(LastStatusEvent).c_str());
+    MainSendDebugPrintf("[WIFI][Connected:%s] Event %s -> %s", (WiFi.isConnected()) ? "Y" : "N", StatusIdToString(tmp).c_str(), StatusIdToString(LastStatusEvent).c_str());
 
-    if (LastStatusEvent == WL_NO_SSID_AVAIL)
+    if (LastStatusEvent == WL_NO_SSID_AVAIL && conf.ssid[0] != '\0')
     {
-      Connect(); // on relance les tentatives
+      Connect();
       return;
     }
 
     if (DelegateWifiChange != nullptr)
-    { // Que si quelqu'un ecoute l'event
+    {
       DelegateWifiChange(WiFi.isConnected(), tmp, LastStatusEvent);
     }
   }
 
-  if (AsAP() && (millis() - LastScanSSID) > INTERVAL_SCAN_SSID_MS && conf.ssid[0] != '\0')
+  // If in AP mode with a configured SSID: periodic scan to recover connection
+  if (AsAP() && conf.ssid[0] != '\0')
   {
-    LastScanSSID = millis();
-    //en mode AP, scan les SSID pour savoir si il peut se connecter seulement si un SSID est donné
-    if (FindThesSSID())
+    // Auto-reconnect if AP has been running with no client connected for over 5 minutes
+    if (WiFi.softAPgetStationNum() == 0 && APtimer > 0 && (millis() - APtimer > 300000))
     {
+      MainSendDebug("[WIFI] In AP-modus zonder verbonden clients voor >5 min; opnieuw verbinden met WiFi...");
+      APtimer = millis();
       Reconnect();
+      return;
+    }
+
+    if ((millis() - LastScanSSID) > INTERVAL_SCAN_SSID_MS)
+    {
+      LastScanSSID = millis();
+      if (FindThesSSID())
+      {
+        Reconnect();
+      }
     }
   }
 }
+
 String WifiMgr::CurrentIP()
 {
   return WiFi.localIP().toString();
@@ -62,20 +72,16 @@ String WifiMgr::CurrentIP()
 
 bool WifiMgr::FindThesSSID()
 {
-  MainSendDebugPrintf("[WIFI] Looking for : %s", conf.ssid);
+  MainSendDebugPrintf("[WIFI] Zoeken naar SSID: %s", conf.ssid);
   
-  // Scan des réseaux WiFi
   int numNetworks = WiFi.scanNetworks();
-
-  if (numNetworks == 0)
+  if (numNetworks <= 0)
   {
     return false;
   }
 
-  // Parcourir la liste des réseaux WiFi
   for (int i = 0; i < numNetworks; ++i)
   {
-    // Vérifier si le réseau recherché est présent
     if (strcmp(WiFi.SSID(i).c_str(), conf.ssid) == 0)
     {
       return true;
@@ -85,44 +91,30 @@ bool WifiMgr::FindThesSSID()
   return false;
 }
 
-
-/// @brief Traduit l'id de status en string
-/// @param status
-/// @return
 String WifiMgr::StatusIdToString(wl_status_t status)
 {
   switch (status)
   {
   case WL_NO_SHIELD:
     return "NO_SHIELD";
-    break;
   case WL_IDLE_STATUS:
     return "IDLE_STATUS";
-    break;
   case WL_NO_SSID_AVAIL:
     return "NO_SSID_AVAIL";
-    break;
   case WL_SCAN_COMPLETED:
     return "SCAN_COMPLETED";
-    break;
   case WL_CONNECTED:
     return "CONNECTED";
-    break;
   case WL_CONNECT_FAILED:
     return "CONNECT_FAILED";
-    break;
   case WL_CONNECTION_LOST:
     return "CONNECTION_LOST";
-    break;
   case WL_WRONG_PASSWORD:
     return "WRONG_PASSWORD";
-    break;
   case WL_DISCONNECTED:
     return "DISCONNECTED";
-    break;
   default:
-    return "UNKNOW";
-    break;
+    return "UNKNOWN";
   }
 }
 
@@ -140,13 +132,11 @@ void WifiMgr::OnWifiEvent(std::function<void(bool, wl_status_t, wl_status_t)> Ca
   DelegateWifiChange = CallBack;
 }
 
-
 void WifiMgr::Connect()
 {
-  if (strcmp(conf.ssid, "") != 0)
+  if (conf.ssid[0] != '\0')
   {
-    // Wifi configured to connect to one wifi
-    MainSendDebugPrintf("[WIFI] Connect to '%s'", conf.ssid);
+    MainSendDebugPrintf("[WIFI] Verbinden met '%s'", conf.ssid);
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
     WiFi.begin(conf.ssid, conf.password);
@@ -157,22 +147,22 @@ void WifiMgr::Connect()
       digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
       Yield_Delay(300);
 
-      if (tries++ > 30)
+      if (tries++ >= 30)
       {
+        MainSendDebugPrintf("[WIFI] Kan geen verbinding maken met '%s'. AP-modus geactiveerd.", conf.ssid);
         SetAPMod();
         break;
       }
     }
 
-    // if connected to wifi's user
     if (WiFi.getMode() == WIFI_STA && WiFi.status() == WL_CONNECTED)
     {
       WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &event)
       {
-        MainSendDebugPrintf("[WIFI] Perte de communication : %s", event.reason);
+        MainSendDebugPrintf("[WIFI] Verbinding verbroken (reden: %u)", (unsigned int)event.reason);
       });
       WiFi.setAutoReconnect(true);
-      MainSendDebugPrintf("[WIFI] Running, IP : %s", WiFi.localIP().toString());
+      MainSendDebugPrintf("[WIFI] Verbonden, IP: %s", WiFi.localIP().toString().c_str());
       setRFPower();
       digitalWrite(LED_BUILTIN, LED_OFF);
     }
@@ -185,7 +175,7 @@ void WifiMgr::Connect()
 
 void WifiMgr::Reconnect()
 {
-  MainSendDebugPrintf("[WIFI] Trying to Reconnect to '%s' wifi network", conf.ssid);
+  MainSendDebugPrintf("[WIFI] Opnieuw verbinden met '%s'...", conf.ssid);
   WiFi.mode(WIFI_STA);
   WiFi.begin(conf.ssid, conf.password);
   byte tries = 0;
@@ -193,31 +183,34 @@ void WifiMgr::Reconnect()
   {
     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
     Yield_Delay(300);
-    if (tries++ < 30)
+    if (tries++ >= 30)
     {
-      MainSendDebugPrintf("[WIFI] Can't connect to '%s' !", conf.ssid);
+      MainSendDebugPrintf("[WIFI] Kan niet verbinden met '%s', terug naar AP-modus", conf.ssid);
       SetAPMod();
       return;
     }
   }
+
+  MainSendDebugPrintf("[WIFI] Opnieuw verbonden, IP: %s", WiFi.localIP().toString().c_str());
+  setRFPower();
+  digitalWrite(LED_BUILTIN, LED_OFF);
 }
 
 bool WifiMgr::IsConnected()
 {
   return WiFi.isConnected();
 }
+
 void WifiMgr::SetAPMod()
 {
   digitalWrite(LED_BUILTIN, LED_ON);
 
   WiFi.mode(WIFI_AP);
   WiFi.softAP(GetClientName(), "");
-  MainSendDebugPrintf("[WIFI] Start captive Portal '%s' (IP:%s)", GetClientName(), WiFi.softAPIP().toString().c_str());
+  MainSendDebugPrintf("[WIFI] Setup AP '%s' gestart (IP: %s)", GetClientName(), WiFi.softAPIP().toString().c_str());
   APtimer = millis();
 }
 
-/// @brief Si il diffuse son propre AP et non connecté a un Wifi
-/// @return True si c'est en mode AP
 bool WifiMgr::AsAP()
 {
   return (WiFi.getMode() != WIFI_STA);
@@ -225,53 +218,12 @@ bool WifiMgr::AsAP()
 
 void WifiMgr::setRFPower()
 {
-  float newPower = CalcuAdjustWiFiPower();
-  
-  if (newPower == -1)
-  {
-    return; //not connected or error
-  }
-
-  // N'applique le changement que si la différence est significative
-  if (currentPowerWifi == -1 || abs(currentPowerWifi - newPower) >= HYSTERESIS_CORRECTION_POWER)
-  {
-    WiFi.setOutputPower(currentPowerWifi);
-    currentPowerWifi = newPower;
-  }
+  // Full transmit power (20.5 dBm) for maximum penetration through metal meter cabinets
+  WiFi.setOutputPower(20.5);
+  currentPowerWifi = 20.5;
 }
 
 float WifiMgr::CalcuAdjustWiFiPower()
 {
-  if (WiFi.status() != WL_CONNECTED)
-  {
-    return -1;
-  }
-
-  int rssi = WiFi.RSSI();
-  float newPower;
-  
-  // Protection contre les valeurs RSSI invalides
-  if (rssi >= 0)
-  {
-    return -1;
-  }
-  
-  if (rssi > -50)
-  {
-    // Signal fort : puissance minimale
-    newPower = 0;
-  }
-  else if (rssi < -80)
-  {
-    // Signal faible : puissance maximale
-    newPower = 20.5;
-  }
-  else 
-  {
-    // Entre -50 et -80 : adaptation linéaire
-    // Convertit -80~-50 en 0~20.5
-    newPower = ((-rssi - 50) * 20.5) / 30;
-  }
-  
-  return newPower;
+  return 20.5;
 }

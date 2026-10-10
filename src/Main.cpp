@@ -26,7 +26,7 @@
 #include "GlobalVar.h"
 
 char clientName[CLIENTNAMESIZE];
-unsigned long WatchDogsTimer = millis() + WATCHDOGINTERVAL;
+unsigned long lastWatchDogsCheck = 0;
 
 settings config_data;
 
@@ -58,47 +58,18 @@ void MainSendDebug(const char *payload)
 
 void MainSendDebugPrintf(const char *format, ...)
 {
-    const int initialBufferSize = 128;
-    const int maxBufferSize = 1024;
-    char* buffer = nullptr;
-    int bufferSize = initialBufferSize;
-    int length = 0;
+    char buffer[256];
     va_list args;
-
-    do
-    {
-        delete[] buffer;
-        buffer = new char[bufferSize];
-        
-        va_start(args, format);
-        length = vsnprintf(buffer, bufferSize, format, args);
-        va_end(args);
-
-        if (length < 0)
-        {
-            delete[] buffer;
-            return;
-        }
-
-        if (length >= bufferSize)
-        {
-            bufferSize *= 2;
-            if (bufferSize > maxBufferSize)
-            {
-                delete[] buffer;
-                return;
-            }
-        }
-    } while (length >= bufferSize);
-
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
     MainSendDebug(buffer);
-    delete[] buffer;
 }
 
 void Yield_Delay(unsigned long ms)
 {
-  unsigned long WaitUntil = millis() + ms;
-  while (millis() <= WaitUntil)
+  unsigned long start = millis();
+  while (millis() - start < ms)
   {
     yield();
   }
@@ -204,7 +175,7 @@ void setup()
       false,          // debugToTelnet
       23,             // telnetPort
       "",             // adminPassword
-      ""              // adminUser
+      "admin"         // adminUser
     };
   }
   else
@@ -240,7 +211,7 @@ void doWatchDogs()
   if (ESP.getFreeHeap() < 2000)
   {
     MainSendDebug("[Core] FATAL: Memory leak detected!");
-    ESP.reset();
+    ESP.restart();
   }
 
   if (config_data.BootFailed != 0)
@@ -250,7 +221,7 @@ void doWatchDogs()
     EEPROM.commit();
   }
 
-  WatchDogsTimer = millis() + WATCHDOGINTERVAL;
+  lastWatchDogsCheck = millis();
 }
 
 void loop()
@@ -264,10 +235,11 @@ void loop()
     TelnetServer->DoMe();
   }
 
-  if (millis() > WatchDogsTimer)
+  if (millis() - lastWatchDogsCheck >= WATCHDOGINTERVAL)
   {
     doWatchDogs();
   }
+  yield();
 }
 
 void RequestRestart(unsigned long delay)

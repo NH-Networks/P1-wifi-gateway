@@ -35,6 +35,7 @@ public:
   explicit HTTPMgr(settings &currentConf, TelnetMgr *currentTelnet, P1Reader &currentP1);
   void DoMe();
   void start_webservices();
+  static String escapeHtml(const char *input);
 
 private:
   settings &conf;
@@ -44,7 +45,6 @@ private:
   char HTMLBufferContent[3000];
   bool ChekifAsAdmin();
   void SendWithHeaderFooter(const char *content_type, const char *content, const char *header, bool refresh);
-  char* nettoyerInputText(const char* inputText, size_t maxLen);
   const char* GetAnimWait();
   void handleRoot();
   void handlePassword();

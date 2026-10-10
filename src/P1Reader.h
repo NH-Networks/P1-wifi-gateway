@@ -47,6 +47,7 @@ public:
   unsigned long LastSample = 0;
   explicit P1Reader(settings &currentConf);
   unsigned long GetnextUpdateTime();
+  unsigned long GetNextUpdateInMs();
   char telegram[MAXLINELENGTH] = {}; // holds a single line of the datagram
   String datagram;                   // holds entire datagram for raw output
   String meterName = "";
@@ -126,8 +127,8 @@ protected:
 private:
   std::vector<std::function<void()>> delegates;
   settings &conf;
-  unsigned long nextUpdateTime = millis() + 5000; //wait 5s before read datagram
-  unsigned long TimeOutRead;
+  unsigned long lastReadTime = 0;
+  unsigned long readStartTime = 0;
   void RTS_on();
   void RTS_off();
   void OBISparser(int len);

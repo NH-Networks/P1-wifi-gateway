@@ -347,7 +347,14 @@ void HTTPMgr::handlePassword()
     {
       conf.NeedConfig = false;
       server.arg("psd1").toCharArray(conf.adminPassword, sizeof(conf.adminPassword));
-      server.arg("adminUser").toCharArray(conf.adminUser, sizeof(conf.adminUser));
+      if (server.hasArg("adminUser") && server.arg("adminUser").length() > 0)
+      {
+        server.arg("adminUser").toCharArray(conf.adminUser, sizeof(conf.adminUser));
+      }
+      else if (conf.adminUser[0] == '\0')
+      {
+        strncpy(conf.adminUser, "admin", sizeof(conf.adminUser));
+      }
 
       conf.BootFailed = 0;
       MainSendDebug("[HTTP] New password saved");
@@ -372,9 +379,8 @@ void HTTPMgr::handlePassword()
 <a href="/" class="bt">)" LANG_MENU R"(</a>
 )";
 
-  char *cleanUser = nettoyerInputText(conf.adminUser, 33);
-  snprintf_P(HTMLBufferContent, sizeof(HTMLBufferContent), template_html, (cleanUser != NULL) ? cleanUser : "");
-  if (cleanUser != NULL) free(cleanUser);
+  String cleanUser = escapeHtml(conf.adminUser);
+  snprintf_P(HTMLBufferContent, sizeof(HTMLBufferContent), template_html, cleanUser.c_str());
 
   SendWithHeaderFooter("text/html", HTMLBufferContent, "", false);
 }
@@ -407,21 +413,18 @@ void HTTPMgr::handleSetup()
 <a href="/" class="bt">)" LANG_MENU R"(</a>
 )";
 
-  char *cleanSsid = nettoyerInputText(conf.ssid, 33);
-  char *cleanPass = nettoyerInputText(conf.password, 65);
+  String cleanSsid = escapeHtml(conf.ssid);
+  String cleanPass = escapeHtml(conf.password);
 
   snprintf_P(HTMLBufferContent, sizeof(HTMLBufferContent), template_html,
              conf.interval,
              (conf.InverseHigh_1_2_Tarif) ? "checked" : "",
-             (cleanSsid != NULL) ? cleanSsid : "",
-             (cleanPass != NULL) ? cleanPass : "",
+             cleanSsid.c_str(),
+             cleanPass.c_str(),
              (conf.telnet) ? "checked" : "",
              conf.telnetPort ? conf.telnetPort : 23,
              (conf.reportToTelnet) ? "checked" : "",
              (conf.debugToTelnet) ? "checked" : "");
-
-  if (cleanSsid != NULL) free(cleanSsid);
-  if (cleanPass != NULL) free(cleanPass);
 
   SendWithHeaderFooter("text/html", HTMLBufferContent, "", false);
 }
@@ -510,16 +513,16 @@ void HTTPMgr::handleP1()
 
 void HTTPMgr::handleJSONStatus()
 {
-  char out[150];
   JsonDocument doc;
 
   doc["P1"]["LastSample"] = P1Captor.DataReaded.P1timestamp;
   doc["P1"]["Interval"] = conf.interval;
-  doc["P1"]["NextUpdateIn"] = P1Captor.GetnextUpdateTime() - millis();
+  doc["P1"]["NextUpdateIn"] = P1Captor.GetNextUpdateInMs();
   doc["Port23"]["Active"] = (TelnetSrv != nullptr);
   doc["Port23"]["Clients"] = (TelnetSrv != nullptr) ? TelnetSrv->GetConnectedClientCount() : 0;
   doc["Port23"]["Port"] = conf.telnetPort ? conf.telnetPort : 23;
 
+  String out;
   serializeJson(doc, out);
 
   ActifCache(false);
@@ -528,10 +531,9 @@ void HTTPMgr::handleJSONStatus()
 
 void HTTPMgr::handleJSON()
 {
-  char str[1000];
   JsonDocument doc;
   doc["LastSample"] = P1Captor.DataReaded.P1timestamp;
-  doc["NextUpdateIn"] = P1Captor.GetnextUpdateTime() - millis();
+  doc["NextUpdateIn"] = P1Captor.GetNextUpdateInMs();
   doc["P1"]["T1"] = P1Captor.DataReaded.electricityUsedTariff1.val();
   doc["P1"]["T2"] = P1Captor.DataReaded.electricityUsedTariff2.val();
   doc["P1"]["RT1"] = P1Captor.DataReaded.electricityReturnedTariff1.val();
@@ -546,6 +548,7 @@ void HTTPMgr::handleJSON()
   doc["P1"]["A"]["L3"] = P1Captor.DataReaded.instantaneousCurrentL3.val();
   doc["P1"]["gasReceived5min"] = P1Captor.DataReaded.gasReceived5min;
 
+  String str;
   serializeJson(doc, str);
 
   ActifCache(false);
@@ -565,26 +568,24 @@ bool HTTPMgr::ChekifAsAdmin()
   return true;
 }
 
-char *HTTPMgr::nettoyerInputText(const char *inputText, size_t maxLen)
+String HTTPMgr::escapeHtml(const char *input)
 {
-  char *result = (char *)malloc(maxLen + 1);
-  if (result == NULL)
+  if (!input) return String("");
+  String out;
+  out.reserve(strlen(input) + 16);
+  for (size_t i = 0; input[i] != '\0'; i++)
   {
-    return NULL;
+    switch (input[i])
+    {
+      case '&':  out += "&amp;"; break;
+      case '<':  out += "&lt;"; break;
+      case '>':  out += "&gt;"; break;
+      case '"':  out += "&quot;"; break;
+      case '\'': out += "&#39;"; break;
+      default:   out += input[i]; break;
+    }
   }
-
-  strncpy(result, inputText, maxLen);
-  result[maxLen] = '\0';
-
-  char *found = result;
-  while ((found = strchr(found, '\'')) != NULL)
-  {
-    memmove(found + 5, found + 1, strlen(found + 1) + 1);
-    strcpy(found, "&apos;");
-    found += 5;
-  }
-
-  return result;
+  return out;
 }
 
 const char *HTTPMgr::GetAnimWait()
