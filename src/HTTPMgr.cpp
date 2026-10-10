@@ -122,7 +122,7 @@ void HTTPMgr::handleRoot()
   static const char template_html[] PROGMEM = R"raw(
     <div style="margin:-4px 0 16px;padding:9px 14px;background:rgba(15,23,42,0.6);border:1px solid var(--border);border-radius:8px;font-size:0.92em;display:flex;align-items:center;justify-content:center;gap:8px">
       <span class="indicator" id="meter-dot" style="margin-right:0"></span>
-      <span style="color:var(--muted)">Smart Meter:</span> <strong style="color:#f1f5f9">%s</strong>
+      <span style="color:var(--muted)">Smart Meter:</span> <strong id="meter-name" style="color:#f1f5f9">%s</strong>
     </div>
     <fieldset><legend>)raw" LANG_H1DATA R"raw(</legend>
     <a href="/P1" class="bt">)raw" LANG_MENUP1 R"raw(</a>
@@ -323,7 +323,7 @@ void HTTPMgr::handleMainJS()
   if (ActifCache(true))
     return;
 
-  static const char js[] PROGMEM = R"(function parseDateTime(t){return new Date("20"+t.substring(0,2),t.substring(2,4)-1,t.substring(4,6),t.substring(6,8),t.substring(8,10),t.substring(10,12))}async function updateStatus(){try{let e=await fetch("status.json"),s=await e.json();const p=document.getElementById("Port23-indicator");if(null!=p){(s.Port23&&s.Port23.Active)?p.classList.remove("error"):p.classList.add("error")}const n=document.getElementById("P1-indicator"),m=document.getElementById("meter-dot");if(""!=s.P1.LastSample){var t=parseDateTime(s.P1.LastSample);t.setSeconds(t.getSeconds()+3*s.P1.Interval);var isErr=(t<Date.now());if(null!=n){isErr?n.classList.add("error"):n.classList.remove("error")}if(null!=m){isErr?m.classList.add("error"):m.classList.remove("error")}}else{if(null!=n)n.classList.add("error");if(null!=m)m.classList.add("error")}}catch(t){console.error("Error on update status:",t)}}window.onload=function(){updateStatus();document.querySelectorAll(".bwarning").forEach((t=>{t.addEventListener("click",(function(t){confirm(")" LANG_ASKCONFIRM R"(")||t.preventDefault()}))})),setInterval(updateStatus,1e4)};)";
+  static const char js[] PROGMEM = R"(function parseDateTime(t){return new Date("20"+t.substring(0,2),t.substring(2,4)-1,t.substring(4,6),t.substring(6,8),t.substring(8,10),t.substring(10,12))}async function updateStatus(){try{let e=await fetch("status.json"),s=await e.json();const p=document.getElementById("Port23-indicator");if(null!=p){(s.Port23&&s.Port23.Active)?p.classList.remove("error"):p.classList.add("error")}const n=document.getElementById("P1-indicator"),m=document.getElementById("meter-dot");if(""!=s.P1.LastSample){var t=parseDateTime(s.P1.LastSample);t.setSeconds(t.getSeconds()+3*s.P1.Interval);var isErr=(t<Date.now());if(null!=n){isErr?n.classList.add("error"):n.classList.remove("error")}if(null!=m){isErr?m.classList.add("error"):m.classList.remove("error")}}else{if(null!=n)n.classList.add("error");if(null!=m)m.classList.add("error")}if(s.P1&&s.P1.Meter&&""!=s.P1.Meter){const mn=document.getElementById("meter-name");if(null!=mn&&mn.innerText!==s.P1.Meter){mn.innerText=s.P1.Meter}}}catch(t){console.error("Error on update status:",t)}}window.onload=function(){updateStatus();setTimeout(updateStatus,2000);setTimeout(updateStatus,5000);document.querySelectorAll(".bwarning").forEach((t=>{t.addEventListener("click",(function(t){confirm(")" LANG_ASKCONFIRM R"(")||t.preventDefault()}))})),setInterval(updateStatus,1e4)};)";
 
   server.send(200, "application/javascript", js);
 }
@@ -566,6 +566,7 @@ void HTTPMgr::handleJSONStatus()
   doc["P1"]["LastSample"] = P1Captor.DataReaded.P1timestamp;
   doc["P1"]["Interval"] = conf.interval;
   doc["P1"]["NextUpdateIn"] = P1Captor.GetNextUpdateInMs();
+  doc["P1"]["Meter"] = (P1Captor.meterName.length() > 0) ? P1Captor.meterName : "";
   doc["Port23"]["Active"] = (TelnetSrv != nullptr);
   doc["Port23"]["Clients"] = (TelnetSrv != nullptr) ? TelnetSrv->GetConnectedClientCount() : 0;
   doc["Port23"]["Port"] = conf.telnetPort ? conf.telnetPort : 23;
