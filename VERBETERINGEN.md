@@ -44,7 +44,25 @@ In de map `narfight_builds/` en `.pio/build/Prod_NL/`:
   - **Webinterface**: Gemeten waarden (`/P1`), Live JSON (`/P1.json`), Ruw datagram (`/raw`), Firmware update (`/update`), Inloggegevens (`/setPassword`), Herstart en Reset.
   - **Statusbalk**: Toont statusindicator voor Poort 23 en P1 meter.
 
-### 3. Hoe te Flashen via OTA
+### 3. Stabiliteit & Productie-Ready Hardening (24/7 Betrouwbaarheid)
+- **Geheugencorruptie & Heap Overflow Geëlimineerd**:
+  - De verouderde functie `nettoyerInputText` bevatte een kritieke heap buffer overflow bij het manipuleren van invoertekens. Dit is vervangen door een veilige `escapeHtml`-implementatie die volledige bescherming biedt zonder ongecontroleerde heap manipulaties.
+  - Dynamische heap-allocaties in `MainSendDebugPrintf` zijn vervangen door een vaste 256-byte stackbuffer, waardoor heap-fragmentatie over langdurige periodes tot nul is gereduceerd.
+- **49.7-Dagen `millis()` Rollover Veiligheid**:
+  - Alle tijdvergelijkingen in de watchdog, `Yield_Delay` en de `P1Reader` zijn omgezet naar veilige differentiële berekeningen (`millis() - start >= interval`). Hierdoor kan het apparaat maanden/jaren draaien zonder vast te lopen na 49.7 dagen.
+- **Netwerk & TCP Bescherming**:
+  - Client sockets op poort 23 hebben nu een actieve timeout van 200 ms, waardoor vastgelopen of haperende clients de hoofdlus nooit meer kunnen blokkeren.
+  - WiFi herverbindingslogica gecorrigeerd (herverbindingslus breekt niet meer voortijdig af na 1 poging).
+  - Volledig zendvermogen (20.5 dBm) ingesteld om betrouwbare verbinding te garanderen door stalen meterkasten heen.
+  - Automatische herverbindingspoging vanuit AP-modus wanneer er langer dan 5 minuten geen apparaten verbonden zijn.
+- **P1 DSMR Parser Hardening**:
+  - Buffergrootte voor het datagram verhoogd naar 4096 bytes om overflows bij lange slimme meter telegrammen te voorkomen.
+  - Volledige ondersteuning voor M-Bus gaskanalen 1 t/m 4 en Belgische Fluvius meters (`12421`, `22421`, `32421`, `42421`, `12423`, `22423`).
+  - Blokkerende 800ms `delay()` bij elke P1-uitlezing vervangen door een 10ms micro-puls, waardoor de netwerkstack soepel blijft reageren.
+
+---
+
+### 4. Hoe te Flashen via OTA
 1. Surf naar het IP-adres van uw P1 meter (bijv. `http://192.168.x.x`).
 2. Klik in het menu op **Firmware bijwerken** (`/update`).
 3. Kies het bestand `P1meter-Dutch-1.04.bin.gz` (of `P1meter-Dutch-1.03.bin.gz`).
